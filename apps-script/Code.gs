@@ -598,15 +598,23 @@ function setupStaffRoleSheet() {
  * ================================================================================== */
 
 var PAGE_SHEET = 'feedback-page-list';
-var PAGE_COLUMNS = ['slug', 'label', 'active', 'note'];
+// slug·label·active·note + LỊCH tự động: open_at (giờ tự BẬT) · close_at (giờ tự TẮT)
+var PAGE_COLUMNS = ['slug', 'label', 'active', 'note', 'open_at', 'close_at'];
 var REDIRECT_WHEN_OFF = 'https://fbk.solenglishland.vn/';
 
 function getPageListSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(PAGE_SHEET);
-  if (!sh) { sh = ss.insertSheet(PAGE_SHEET); sh.appendRow(PAGE_COLUMNS); sh.setFrozenRows(1); }
+  if (!sh) { sh = ss.insertSheet(PAGE_SHEET); sh.appendRow(PAGE_COLUMNS); sh.setFrozenRows(1); forcePageTextCols_(sh); }
   if (sh.getLastRow() === 0) sh.appendRow(PAGE_COLUMNS);
   return sh;
+}
+// open_at/close_at để định dạng Văn bản → giữ nguyên chuỗi 'yyyy-MM-dd HH:mm', không bị Sheet đổi kiểu.
+function forcePageTextCols_(sh) {
+  ['open_at', 'close_at'].forEach(function (c) {
+    var i = PAGE_COLUMNS.indexOf(c);
+    if (i > -1) sh.getRange(2, i + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
+  });
 }
 
 function isPageActive_(slug) {
@@ -631,7 +639,8 @@ function apiListPages(token) {
     pages: vals.map(function (r) {
       return {
         slug: String(r[idx.slug] || ''), label: String(r[idx.label] || ''),
-        active: String(r[idx.active]).toUpperCase() === 'TRUE', note: String(r[idx.note] || '')
+        active: String(r[idx.active]).toUpperCase() === 'TRUE', note: String(r[idx.note] || ''),
+        open_at: toDatetimeLocal_(r[idx.open_at]), close_at: toDatetimeLocal_(r[idx.close_at])
       };
     })
   };
@@ -643,10 +652,13 @@ function apiSavePage(token, data) {
   var slug = clean_(data.slug).toLowerCase();
   if (!slug) return { ok: false, message: 'Cần mã trang (slug — giá trị ?sw=).' };
   var existed = !!findRow_(getPageListSheet_(), 'slug', slug);
-  upsertRow_(getPageListSheet_(), 'slug', slug, {
+  var sh = getPageListSheet_();
+  upsertRow_(sh, 'slug', slug, {
     slug: slug, label: clean_(data.label) || slug,
-    active: data.active === false ? 'FALSE' : 'TRUE', note: clean_(data.note)
+    active: data.active === false ? 'FALSE' : 'TRUE', note: clean_(data.note),
+    open_at: clean_(data.open_at).replace('T', ' '), close_at: clean_(data.close_at).replace('T', ' ')
   });
+  forcePageTextCols_(sh);
   if (!existed) {
     staffTelegram_('🆕 TẠO TRANG FEEDBACK: ' + (clean_(data.label) || slug) + ' (?sw=' + slug + ')\n— ' + sess.name);
   }
@@ -664,6 +676,62 @@ function apiSetPageActive(token, slug, active) {
   return { ok: true };
 }
 
+/* ---------- LỊCH TỰ ĐỘNG BẬT/TẮT (time-trigger) ---------- */
+// Định dạng ô giờ về 'yyyy-MM-dd HH:mm' (cho input datetime-local phía admin).
+function toDatetimeLocal_(v) {
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, "yyyy-MM-dd'T'HH:mm");
+  return String(v == null ? '' : v).trim().replace(' ', 'T');
+}
+// Chuỗi 'yyyy-MM-dd HH:mm' (giờ VN) → ms. Trả 0 nếu trống/sai.
+function parseWhen_(v) {
+  if (v instanceof Date) return v.getTime();
+  var s = String(v == null ? '' : v).trim().replace('T', ' ');
+  if (!s) return 0;
+  try { return Utilities.parseDate(s, TZ, 'yyyy-MM-dd HH:mm').getTime(); }
+  catch (e) { var t = new Date(String(v)).getTime(); return isNaN(t) ? 0 : t; }
+}
+function fmtWhen_(ms) { return Utilities.formatDate(new Date(ms), TZ, 'HH:mm dd-MM-yyyy'); }
+
+// CHẠY BỞI TRIGGER mỗi ~5 phút: BẬT khi qua open_at, TẮT khi qua close_at (edge — chỉ 1 lần) → Telegram.
+function autoTogglePages() {
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
+  if (!sh || sh.getLastRow() < 2) return;
+  var props = PropertiesService.getScriptProperties();
+  var nowMs = Date.now();
+  var lastMs = Number(props.getProperty('AUTO_LAST_RUN')) || (nowMs - 6 * 60 * 1000);
+  var idx = headerIndex_(sh);
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  for (var r = 0; r < vals.length; r++) {
+    var slug = String(vals[r][idx.slug] || '').trim();
+    if (!slug) continue;
+    var label = String(vals[r][idx.label] || slug);
+    var active = String(vals[r][idx.active]).toUpperCase() === 'TRUE';
+    var openMs = parseWhen_(vals[r][idx.open_at]);
+    var closeMs = parseWhen_(vals[r][idx.close_at]);
+    // BẬT khi mốc open_at vừa đi qua trong khoảng (lastMs, nowMs]
+    if (openMs && openMs > lastMs && openMs <= nowMs && !active) {
+      sh.getRange(r + 2, idx.active + 1).setValue('TRUE');
+      staffTelegram_('🟢 TỰ ĐỘNG MỞ trang feedback: ' + label + ' (?sw=' + slug + ')\nĐúng lịch mở: ' + fmtWhen_(openMs));
+    }
+    // TẮT khi mốc close_at vừa đi qua
+    if (closeMs && closeMs > lastMs && closeMs <= nowMs && active) {
+      sh.getRange(r + 2, idx.active + 1).setValue('FALSE');
+      staffTelegram_('🔴 TỰ ĐỘNG TẮT trang feedback: ' + label + ' (?sw=' + slug + ') → redirect ' + REDIRECT_WHEN_OFF + '\nĐúng lịch tắt: ' + fmtWhen_(closeMs));
+    }
+  }
+  props.setProperty('AUTO_LAST_RUN', String(nowMs));
+}
+
+// Chạy tay 1 lần: cài trigger autoTogglePages mỗi 5 phút (không tạo trùng).
+function installAutoToggleTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'autoTogglePages') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('autoTogglePages').timeBased().everyMinutes(5).create();
+  Logger.log('✅ Đã cài trigger autoTogglePages mỗi 5 phút.');
+  try { SpreadsheetApp.getUi().alert('Đã cài lịch tự bật/tắt (kiểm tra mỗi 5 phút).'); } catch (e) {}
+}
+
 // Chạy tay 1 lần: tạo sheet feedback-page-list + nạp sẵn ckry (SOL Cookery) + test.
 function setupFeedbackPageList() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -671,9 +739,10 @@ function setupFeedbackPageList() {
   sh.getRange(1, 1, 1, sh.getMaxColumns()).clearContent();
   sh.getRange(1, 1, 1, PAGE_COLUMNS.length).setValues([PAGE_COLUMNS]).setFontWeight('bold');
   sh.setFrozenRows(1);
+  forcePageTextCols_(sh);
   if (sh.getLastRow() < 2) {
-    sh.appendRow(['ckry', 'SOL Cookery', 'TRUE', 'Workshop nấu ăn cho bé — SOL Cookery']);
-    sh.appendRow(['test', 'Trang TEST', 'TRUE', 'Trang test bật/tắt (chữ "test" giữa màn hình)']);
+    sh.appendRow(['ckry', 'SOL Cookery', 'TRUE', 'Workshop nấu ăn cho bé — SOL Cookery', '', '']);
+    sh.appendRow(['test', 'Trang TEST', 'TRUE', 'Trang test bật/tắt (chữ "test" giữa màn hình)', '', '']);
     Logger.log('✅ feedback-page-list sẵn sàng (nạp ckry + test = BẬT).');
     try { SpreadsheetApp.getUi().alert('Đã tạo sheet "' + PAGE_SHEET + '" + nạp ckry (SOL Cookery) và test (đang BẬT).'); } catch (e) {}
   } else {

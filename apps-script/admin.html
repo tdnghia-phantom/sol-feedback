@@ -413,9 +413,12 @@ async function loadPages(){
 function pageRow(w){
   var link = WS_LINK_BASE + encodeURIComponent(w.slug);
   var j = esc(JSON.stringify(w));
+  var sched = '';
+  if(w.open_at) sched += '<br><span class="muted" style="font-size:11.5px">🟢 tự mở: '+esc(String(w.open_at).replace('T',' '))+'</span>';
+  if(w.close_at) sched += '<br><span class="muted" style="font-size:11.5px">🔴 tự tắt: '+esc(String(w.close_at).replace('T',' '))+'</span>';
   return '<tr><td><b>'+esc(w.label||w.slug)+'</b>'
     + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
-    + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a></td>'
+    + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a>'+sched+'</td>'
     + '<td>'+(w.active?'<span class="tag-on">● Đang bật</span>':'<span class="tag-lock">● Đã tắt</span>')+'</td>'
     + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+j+'\'>Sửa</button>'
     + '<button class="btn ghost small'+(w.active?' terra':'')+'" data-toggle=\''+j+'\'>'+(w.active?'Tắt':'Bật')+'</button></td></tr>';
@@ -437,9 +440,13 @@ function openPageModal(w){
   var body =
     '<div class="field"><label>Mã trang (slug — giá trị ?sw=) *</label><input type="text" id="mSlug" value="'+esc(w.slug||'')+'"'+(w.slug?' readonly':'')+' placeholder="vd: ckry"></div>'
     + '<div class="field"><label>Tên hiển thị</label><input type="text" id="mLabel" value="'+esc(w.label||'')+'" placeholder="vd: SOL Cookery"></div>'
-    + '<div class="field"><label>Mô tả ngắn (workshop gì)</label><input type="text" id="mNote" value="'+esc(w.note||'')+'" placeholder="tùy chọn"></div>';
+    + '<div class="field"><label>Mô tả ngắn (workshop gì)</label><input type="text" id="mNote" value="'+esc(w.note||'')+'" placeholder="tùy chọn"></div>'
+    + '<div class="field"><label>🟢 Tự BẬT lúc (tùy chọn)</label><input type="datetime-local" id="mOpen" value="'+esc(w.open_at||'')+'"></div>'
+    + '<div class="field"><label>🔴 Tự TẮT lúc (tùy chọn)</label><input type="datetime-local" id="mClose" value="'+esc(w.close_at||'')+'"></div>'
+    + '<div class="muted" style="font-size:12px">Đặt giờ (tương lai) → hệ thống tự bật/tắt đúng giờ và báo Telegram. Để trống = không tự động.</div>';
   openModal((w.slug?'Sửa':'Tạo')+' trang feedback', body, async function(){
-    var data = { slug:$('mSlug').value.trim(), label:$('mLabel').value.trim(), note:$('mNote').value.trim() };
+    var data = { slug:$('mSlug').value.trim(), label:$('mLabel').value.trim(), note:$('mNote').value.trim(),
+      open_at:$('mOpen').value.trim(), close_at:$('mClose').value.trim() };
     if(!data.slug){ toast('Cần mã slug', true); return; }
     var res = await run('apiSavePage', TOKEN, data);
     if(res && res.ok){ toast('✓ Đã lưu trang'); closeModal(); loadPages(); } else toast((res&&res.message)||'Lỗi', true);

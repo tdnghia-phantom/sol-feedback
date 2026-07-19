@@ -216,6 +216,7 @@
 
   /* ================= MÀN CẢM ƠN ================= */
   .thanks{position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; padding:24px 22px calc(28px + env(safe-area-inset-bottom)); overflow:hidden}
+  .thanks[hidden]{display:none} /* chỉ hiện sau khi submit (thắng .thanks{display:flex} khi có attr hidden) */
   .thanks h2{font-family:'Baloo 2',cursive; font-weight:800; font-size:clamp(25px,6.5vw,30px); color:var(--olive-deep); margin:14px 0 8px}
   .thanks h2 .warm{color:var(--terra)}
   .thanks p.msg{font-weight:700; color:var(--ink); margin-bottom:4px}
@@ -241,7 +242,7 @@
   .brandline{order:-1; margin:0 0 12px; display:flex; align-items:center; justify-content:center; gap:14px} /* 2 logo LÊN ĐẦU thẻ cảm ơn */
   .brandline img{height:42px; width:auto}
   .brandline .sep{width:2px; height:30px; background:var(--line); border-radius:2px}
-  .tagline{margin-top:8px; font-size:8.33px; font-weight:800; color:var(--muted); letter-spacing:.4px}
+  .tagline{margin-top:8px; font-size:11.25px; font-weight:800; color:var(--muted); letter-spacing:.4px}
 
   /* confetti (chỉ màn cảm ơn) */
   .confetti i{

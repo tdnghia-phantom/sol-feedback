@@ -456,7 +456,7 @@ if (typeof document !== 'undefined') {
       if (intro) {
         var startBtn = $('[data-fb-start]', intro);
         if (startBtn) startBtn.addEventListener('click', startWizard);
-        introTimer = setTimeout(startWizard, 20000); // 20 giây tự chuyển sang câu 1
+        introTimer = setTimeout(startWizard, 10000); // 10 giây tự chuyển sang câu 1
       }
       var steps = $all('[data-fb-step]');
       if (steps.length > 0) initWizard(steps);
