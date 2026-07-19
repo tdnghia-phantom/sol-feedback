@@ -112,7 +112,7 @@ Scenario: gửi thành công
 
 ### FR-05 — Backend ghi Sheet
 **EARS:** WHEN `doPost` nhận JSON hợp lệ, the system SHALL sinh `submission_id`
-(`FB`+base36), ghi ĐÚNG 1 dòng vào sheet `feedback` theo thứ tự cột của Field
+(mã 5 ký tự, bảng mã bỏ 0/O/1/I, không trùng), ghi ĐÚNG 1 dòng vào sheet `feedback` theo thứ tự cột của Field
 Schema Contract (§3), `created_at` theo giờ `Asia/Ho_Chi_Minh`, `answers_json`
 chứa toàn bộ câu trả lời (kể cả `liked[]`), rồi trả `{ok:true, submission_id}`.
 LockService chống ghi chồng khi 2 phụ huynh gửi cùng lúc.

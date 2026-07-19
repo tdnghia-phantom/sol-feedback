@@ -52,30 +52,30 @@ function doPost(e) {
     }
 
     var rating = clampRating_(data.rating);
-    var submissionId = makeSubmissionId_();
     var createdAt = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00';
 
-    var row = [
-      submissionId,
-      createdAt,
-      safeStr_(data.ws_id, 40) || 'unknown',
-      rating === null ? '' : rating,
-      safeStr_(data.child_enjoy, 60),
-      safeStr_(data.intent, 60),
-      safeStr_(data.comment, 1500),
-      safeStr_(data.parent_name, 120),
-      safeStr_(data.phone, 20),
-      data.allow_testimonial === true,
-      JSON.stringify(data.answers || {}),
-      safeStr_(data.utm_source, 80),
-      note
-    ];
-
-    // --- Ghi Sheet (ưu tiên số 1 — có lock chống ghi chồng) ---
+    // --- Ghi Sheet (lock chống ghi chồng + sinh submission_id 5 ký tự KHÔNG trùng trong cùng lock) ---
     var lock = LockService.getScriptLock();
     lock.tryLock(5000);
+    var submissionId;
     try {
-      getFeedbackSheet_().appendRow(row);
+      var sheet = getFeedbackSheet_();
+      submissionId = uniqueSubmissionId_(sheet);
+      sheet.appendRow([
+        submissionId,
+        createdAt,
+        safeStr_(data.ws_id, 40) || 'unknown',
+        rating === null ? '' : rating,
+        safeStr_(data.child_enjoy, 60),
+        safeStr_(data.intent, 60),
+        safeStr_(data.comment, 1500),
+        safeStr_(data.parent_name, 120),
+        safeStr_(data.phone, 20),
+        data.allow_testimonial === true,
+        JSON.stringify(data.answers || {}),
+        safeStr_(data.utm_source, 80),
+        note
+      ]);
     } finally {
       lock.releaseLock();
     }
@@ -175,7 +175,7 @@ function sendFeedbackAlert_(rating, data, createdAt) {
   var head = low ? ('⚠️ FEEDBACK THẤP (' + rating + '★)') : ('💬 CẢM NHẬN MỚI (' + stars + ')');
 
   var msg =
-    head + ' · Workshop: ' + (safeStr_(data.ws_id, 40) || 'unknown') + '\n' +
+    head + ' · Workshop: ' + pageLabel_(data.ws_id) + '\n' +
     'Bé thích: ' + (safeStr_(data.child_enjoy, 60) || '—') + '\n' +
     (liked ? ('Ưng ý: ' + liked + '\n') : '') +
     'Góp ý: "' + (safeStr_(data.comment, 500) || '—') + '"\n' +
@@ -200,7 +200,7 @@ function sendLowRatingAlert_(rating, data, createdAt) {
     .filter(function (x) { return x; }).join(' ');
 
   var msg =
-    '⚠️ FEEDBACK THẤP (' + rating + '★) · Workshop: ' + (safeStr_(data.ws_id, 40) || 'unknown') + '\n' +
+    '⚠️ FEEDBACK THẤP (' + rating + '★) · Workshop: ' + pageLabel_(data.ws_id) + '\n' +
     'Bé thích: ' + (safeStr_(data.child_enjoy, 60) || '—') + '\n' +
     'Góp ý: "' + (safeStr_(data.comment, 500) || '—') + '"\n' +
     'Liên hệ: ' + (contact || '(không để lại)') + '\n' +
@@ -240,9 +240,29 @@ function getFeedbackSheet_() {
   return sh;
 }
 
+// Mã ngắn 5 ký tự (bảng mã bỏ 0/O/1/I dễ nhầm).
 function makeSubmissionId_() {
-  return 'FB' + Date.now().toString(36).toUpperCase() +
-    Math.random().toString(36).slice(2, 5).toUpperCase();
+  var A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  var s = '';
+  for (var i = 0; i < 5; i++) s += A.charAt(Math.floor(Math.random() * A.length));
+  return s;
+}
+
+// Sinh submission_id 5 ký tự KHÔNG trùng với các mã đã có (gọi TRONG lock của doPost để race-safe).
+function uniqueSubmissionId_(sheet) {
+  var existing = {};
+  try {
+    var last = sheet.getLastRow();
+    if (last >= 2) {
+      var col = sheet.getRange(2, 1, last - 1, 1).getValues(); // cột A = submission_id
+      for (var i = 0; i < col.length; i++) existing[String(col[i][0])] = true;
+    }
+  } catch (e) { /* đọc lỗi → bỏ qua, dùng mã ngẫu nhiên */ }
+  for (var t = 0; t < 30; t++) {
+    var id = makeSubmissionId_();
+    if (!existing[id]) return id;
+  }
+  return makeSubmissionId_(); // cực hiếm (bảng gần đầy) → chấp nhận mã ngẫu nhiên
 }
 
 function clampRating_(v) {
@@ -615,6 +635,17 @@ function forcePageTextCols_(sh) {
     var i = PAGE_COLUMNS.indexOf(c);
     if (i > -1) sh.getRange(2, i + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
   });
+}
+
+// Tên workshop để hiện trong tin Telegram — LẤY TỪ danh sách feedback-page-list (cột label),
+// KHÔNG dùng slug (đuôi link). Không tìm thấy → fallback về slug.
+function pageLabel_(slug) {
+  slug = String(slug || '').trim().toLowerCase();
+  if (!slug) return 'unknown';
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
+  if (!sh) return slug;
+  var found = findRow_(sh, 'slug', slug);
+  return found ? (String(found.obj.label || slug)) : slug;
 }
 
 function isPageActive_(slug) {

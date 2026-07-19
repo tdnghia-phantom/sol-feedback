@@ -232,7 +232,7 @@ if (typeof document !== 'undefined') {
       var btn = $('[data-fb-submit]');
       if (!btn) return;
       btn.disabled = on;
-      btn.textContent = on ? 'Đang gửi… ⏳' : (btn.getAttribute('data-label') || 'Gửi cảm nhận cho SOL 💌');
+      btn.textContent = on ? 'Đang gửi… ⏳' : (btn.getAttribute('data-label') || 'Bấm để Gửi cảm nhận cho SOL 💌');
     }
 
     function showThanks() {
@@ -465,7 +465,7 @@ if (typeof document !== 'undefined') {
       if (intro) {
         var startBtn = $('[data-fb-start]', intro);
         if (startBtn) startBtn.addEventListener('click', startWizard);
-        introTimer = setTimeout(startWizard, 10000); // 10 giây tự chuyển sang câu 1
+        introTimer = setTimeout(startWizard, 8000); // 8 giây tự chuyển sang câu 1
       }
       var steps = $all('[data-fb-step]');
       if (steps.length > 0) initWizard(steps);
