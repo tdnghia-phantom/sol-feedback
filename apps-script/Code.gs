@@ -682,18 +682,33 @@ function apiSavePage(token, data) {
   data = data || {};
   var slug = clean_(data.slug).toLowerCase();
   if (!slug) return { ok: false, message: 'Cần mã trang (slug — giá trị ?sw=).' };
-  var existed = !!findRow_(getPageListSheet_(), 'slug', slug);
   var sh = getPageListSheet_();
+  var existed = !!findRow_(sh, 'slug', slug);
+  var openStr = clean_(data.open_at).replace('T', ' ');
+  var closeStr = clean_(data.close_at).replace('T', ' ');
+  // VALIDATE cột active theo LỊCH tại thời điểm lưu: có lịch → tự tính BẬT/TẮT theo giờ hiện tại.
+  var active;
+  if (openStr || closeStr) active = computeActiveFromSchedule_(openStr, closeStr) ? 'TRUE' : 'FALSE';
+  else active = data.active === false ? 'FALSE' : 'TRUE';
   upsertRow_(sh, 'slug', slug, {
-    slug: slug, label: clean_(data.label) || slug,
-    active: data.active === false ? 'FALSE' : 'TRUE', note: clean_(data.note),
-    open_at: clean_(data.open_at).replace('T', ' '), close_at: clean_(data.close_at).replace('T', ' ')
+    slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
+    open_at: openStr, close_at: closeStr
   });
   forcePageTextCols_(sh);
   if (!existed) {
     staffTelegram_('🆕 TẠO TRANG FEEDBACK: ' + (clean_(data.label) || slug) + ' (?sw=' + slug + ')\n— ' + sess.name);
   }
-  return { ok: true };
+  return { ok: true, active: active === 'TRUE' };
+}
+
+// Trạng thái BẬT/TẮT đúng theo lịch tại thời điểm hiện tại (dùng khi lưu để validate cột active).
+function computeActiveFromSchedule_(openStr, closeStr) {
+  var now = Date.now();
+  var openMs = parseWhen_(openStr);
+  var closeMs = parseWhen_(closeStr);
+  if (openMs && now < openMs) return false;    // chưa tới giờ mở
+  if (closeMs && now >= closeMs) return false; // đã qua giờ đóng
+  return true;                                 // trong khung (hoặc không có mốc chặn)
 }
 
 function apiSetPageActive(token, slug, active) {
@@ -708,10 +723,10 @@ function apiSetPageActive(token, slug, active) {
 }
 
 /* ---------- LỊCH TỰ ĐỘNG BẬT/TẮT (time-trigger) ---------- */
-// Định dạng ô giờ về 'yyyy-MM-dd HH:mm' (cho input datetime-local phía admin).
+// Định dạng ô giờ về 'yyyy-MM-dd HH:mm' (cho picker phía admin đọc lại).
 function toDatetimeLocal_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, TZ, "yyyy-MM-dd'T'HH:mm");
-  return String(v == null ? '' : v).trim().replace(' ', 'T');
+  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm');
+  return String(v == null ? '' : v).trim().replace('T', ' ');
 }
 // Chuỗi 'yyyy-MM-dd HH:mm' (giờ VN) → ms. Trả 0 nếu trống/sai.
 function parseWhen_(v) {

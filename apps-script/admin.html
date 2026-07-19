@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SOL Feedback · Quản trị</title>
+<!-- flatpickr: datetime picker (click tự mở, 24h, format dd-mm-yy hh:mm). Có fallback native nếu CDN lỗi. -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
 <style>
   :root{
     --cream:#FAF4ED; --card:#fff; --olive:#6C813E; --olive-deep:#4E6128;
@@ -441,9 +444,9 @@ function openPageModal(w){
     '<div class="field"><label>Mã trang (slug — giá trị ?sw=) *</label><input type="text" id="mSlug" value="'+esc(w.slug||'')+'"'+(w.slug?' readonly':'')+' placeholder="vd: ckry"></div>'
     + '<div class="field"><label>Tên hiển thị</label><input type="text" id="mLabel" value="'+esc(w.label||'')+'" placeholder="vd: SOL Cookery"></div>'
     + '<div class="field"><label>Mô tả ngắn (workshop gì)</label><input type="text" id="mNote" value="'+esc(w.note||'')+'" placeholder="tùy chọn"></div>'
-    + '<div class="field"><label>🟢 Giờ bắt đầu — tự MỞ (tùy chọn)</label><input type="datetime-local" id="mOpen" value="'+esc(w.open_at||'')+'"></div>'
-    + '<div class="field"><label>🔴 Giờ kết thúc — tự TẮT (tùy chọn)</label><input type="datetime-local" id="mClose" value="'+esc(w.close_at||'')+'"></div>'
-    + '<div class="muted" style="font-size:12px">Chọn ngày+giờ bằng lịch (không gõ tay). Đặt giờ tương lai → hệ thống tự bật/tắt đúng giờ và báo Telegram. Để trống = không tự động.</div>';
+    + '<div class="field"><label>🟢 Giờ bắt đầu — tự MỞ (tùy chọn)</label><input type="text" id="mOpen" value="'+esc(w.open_at||'')+'" placeholder="dd-mm-yy hh:mm" readonly></div>'
+    + '<div class="field"><label>🔴 Giờ kết thúc — tự TẮT (tùy chọn)</label><input type="text" id="mClose" value="'+esc(w.close_at||'')+'" placeholder="dd-mm-yy hh:mm" readonly></div>'
+    + '<div class="muted" style="font-size:12px">Bấm vào ô để chọn ngày+giờ (khung 24h, không gõ tay). Đặt giờ tương lai → tự bật/tắt đúng giờ + báo Telegram. Lưu xong hệ thống tự đặt trạng thái BẬT/TẮT theo lịch. Để trống = không tự động.</div>';
   openModal((w.slug?'Sửa':'Tạo')+' trang feedback', body, async function(){
     var data = { slug:$('mSlug').value.trim(), label:$('mLabel').value.trim(), note:$('mNote').value.trim(),
       open_at:$('mOpen').value.trim(), close_at:$('mClose').value.trim() };
@@ -451,6 +454,19 @@ function openPageModal(w){
     var res = await run('apiSavePage', TOKEN, data);
     if(res && res.ok){ toast('✓ Đã lưu trang'); closeModal(); loadPages(); } else toast((res&&res.message)||'Lỗi', true);
   }, 'Lưu');
+  initDatePickers();
+}
+// Gắn datetime picker cho ô giờ: flatpickr (dd-mm-yy hh:mm, 24h, click tự mở); CDN lỗi → native datetime-local.
+function initDatePickers(){
+  ['mOpen','mClose'].forEach(function(id){
+    var el = $(id); if(!el) return;
+    if(typeof flatpickr !== 'undefined'){
+      flatpickr(el, { enableTime:true, time_24hr:true, dateFormat:'Y-m-d H:i', altInput:true, altFormat:'d-m-y H:i', allowInput:false, clickOpens:true, disableMobile:true });
+    } else {
+      el.type = 'datetime-local'; el.removeAttribute('readonly');
+      if(el.value) el.value = el.value.replace(' ', 'T');
+    }
+  });
 }
 
 /* ---- Nhân viên ---- */

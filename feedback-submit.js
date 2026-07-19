@@ -440,6 +440,8 @@ if (typeof document !== 'undefined') {
     // Bật/tắt trang feedback: hỏi backend TRƯỚC khi lộ nội dung. TẮT → redirect NGAY (giữ overlay);
     // BẬT / lỗi / chưa cấu hình → gỡ overlay hiện trang. Fail-open + timeout 2.5s để không kẹt user hợp lệ.
     function checkPageStatus() {
+      // Router (index.html) đã kiểm tra trạng thái rồi (fbok=1) → hiện trang luôn, khỏi hỏi lại
+      if (typeof location !== 'undefined' && /(?:^|[?&])fbok=1(?:&|$)/.test(location.search)) { revealPage(); return; }
       var endpoint = FEEDBACK_CONFIG.ENDPOINT;
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
       if (!endpoint || endpoint.indexOf('{{') !== -1 || !wsId) { revealPage(); return; }
