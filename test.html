@@ -14,9 +14,13 @@
     min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:20px;
   }
   .test-word{font-size:clamp(72px, 34vw, 220px); font-weight:900; letter-spacing:2px; line-height:1}
+  .page-gate{position:fixed; inset:0; z-index:99999; background:#FAF4ED; display:grid; place-items:center}
+  .page-gate .spin{width:38px; height:38px; border-radius:50%; border:4px solid #EADFC9; border-top-color:#6C813E; animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
+  <div class="page-gate" data-fb-gate aria-hidden="true"><div class="spin"></div></div>
   <div class="test-word">test</div>
 
   <script>

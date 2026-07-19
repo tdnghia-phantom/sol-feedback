@@ -432,26 +432,35 @@ if (typeof document !== 'undefined') {
       if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
     }
 
-    // Bật/tắt trang feedback: hỏi backend (best-effort, fail-open). TẮT → REDIRECT sang trang chính.
+    // Gỡ overlay che trang → hiện nội dung feedback.
+    function revealPage() {
+      var gate = $('[data-fb-gate]');
+      if (gate) gate.style.display = 'none';
+    }
+    // Bật/tắt trang feedback: hỏi backend TRƯỚC khi lộ nội dung. TẮT → redirect NGAY (giữ overlay);
+    // BẬT / lỗi / chưa cấu hình → gỡ overlay hiện trang. Fail-open + timeout 2.5s để không kẹt user hợp lệ.
     function checkPageStatus() {
       var endpoint = FEEDBACK_CONFIG.ENDPOINT;
-      if (!endpoint || endpoint.indexOf('{{') !== -1) return;          // chưa cấu hình ENDPOINT
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
-      if (!wsId) return;
+      if (!endpoint || endpoint.indexOf('{{') !== -1 || !wsId) { revealPage(); return; }
+      var revealTimer = setTimeout(revealPage, 2500); // mạng chậm → vẫn hiện trang
       var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
       fetch(endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(wsId))
         .then(function (r) { return r.json(); })
         .then(function (d) {
+          clearTimeout(revealTimer);
           if (d && d.ok && d.active === false) {
+            // TẮT → điều hướng ngay, KHÔNG gỡ overlay (không lộ nội dung feedback)
             var to = (d.redirect || FEEDBACK_CONFIG.REDIRECT_WHEN_OFF);
-            if (typeof location !== 'undefined' && to) location.replace(to);
-          }
+            if (typeof location !== 'undefined' && to) location.replace(to); else revealPage();
+          } else { revealPage(); }
         })
-        .catch(function () { /* fail-open: lỗi mạng / backend chưa cập nhật → trang vẫn dùng bình thường */ });
+        .catch(function () { clearTimeout(revealTimer); revealPage(); /* fail-open */ });
     }
 
     function init() {
-      // Thẻ mở đầu (tùy chọn): [data-fb-intro] + nút [data-fb-start] → vào wizard; hoặc tự chuyển sau 20s
+      checkPageStatus(); // hỏi trạng thái NGAY (overlay đang che) → redirect sớm nếu trang tắt
+      // Thẻ mở đầu (tùy chọn): [data-fb-intro] + nút [data-fb-start] → vào wizard; hoặc tự chuyển sau 10s
       var intro = $('[data-fb-intro]');
       if (intro) {
         var startBtn = $('[data-fb-start]', intro);
@@ -461,7 +470,6 @@ if (typeof document !== 'undefined') {
       var steps = $all('[data-fb-step]');
       if (steps.length > 0) initWizard(steps);
       else initClassic();
-      checkPageStatus();
     }
 
     if (document.readyState === 'loading') {

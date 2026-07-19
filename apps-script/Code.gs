@@ -692,13 +692,13 @@ function parseWhen_(v) {
 }
 function fmtWhen_(ms) { return Utilities.formatDate(new Date(ms), TZ, 'HH:mm dd-MM-yyyy'); }
 
-// CHẠY BỞI TRIGGER mỗi ~5 phút: BẬT khi qua open_at, TẮT khi qua close_at (edge — chỉ 1 lần) → Telegram.
+// CHẠY BỞI TRIGGER mỗi ~1 tiếng: BẬT khi qua open_at, TẮT khi qua close_at (edge — chỉ 1 lần) → Telegram.
 function autoTogglePages() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
   if (!sh || sh.getLastRow() < 2) return;
   var props = PropertiesService.getScriptProperties();
   var nowMs = Date.now();
-  var lastMs = Number(props.getProperty('AUTO_LAST_RUN')) || (nowMs - 6 * 60 * 1000);
+  var lastMs = Number(props.getProperty('AUTO_LAST_RUN')) || (nowMs - 65 * 60 * 1000);
   var idx = headerIndex_(sh);
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   for (var r = 0; r < vals.length; r++) {
@@ -722,14 +722,14 @@ function autoTogglePages() {
   props.setProperty('AUTO_LAST_RUN', String(nowMs));
 }
 
-// Chạy tay 1 lần: cài trigger autoTogglePages mỗi 5 phút (không tạo trùng).
+// Chạy tay 1 lần: cài trigger autoTogglePages mỗi 1 tiếng (không tạo trùng).
 function installAutoToggleTrigger() {
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'autoTogglePages') ScriptApp.deleteTrigger(t);
   });
-  ScriptApp.newTrigger('autoTogglePages').timeBased().everyMinutes(5).create();
-  Logger.log('✅ Đã cài trigger autoTogglePages mỗi 5 phút.');
-  try { SpreadsheetApp.getUi().alert('Đã cài lịch tự bật/tắt (kiểm tra mỗi 5 phút).'); } catch (e) {}
+  ScriptApp.newTrigger('autoTogglePages').timeBased().everyHours(1).create();
+  Logger.log('✅ Đã cài trigger autoTogglePages mỗi 1 tiếng.');
+  try { SpreadsheetApp.getUi().alert('Đã cài lịch tự bật/tắt (kiểm tra mỗi 1 tiếng).'); } catch (e) {}
 }
 
 // Chạy tay 1 lần: tạo sheet feedback-page-list + nạp sẵn ckry (SOL Cookery) + test.
