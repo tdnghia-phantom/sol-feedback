@@ -40,6 +40,11 @@ function doPost(e) {
       return jsonOut_({ ok: true });
     }
 
+    // --- Gate đóng/mở workshop (Phase 2): workshop bị đóng → KHÔNG ghi, báo closed ---
+    if (!isWorkshopActive_(safeStr_(data.ws_id, 40) || 'unknown')) {
+      return jsonOut_({ ok: false, closed: true, message: 'Trang cảm nhận này đã đóng.' });
+    }
+
     var note = String(data.note || '');
     var t = Number(data._t) || 0;
     if (t > 0 && t < FAST_SUBMIT_MS) {
@@ -97,6 +102,14 @@ function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.action === 'health') {
     return jsonOut_({ ok: true, service: 'sol-feedback', time: Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss') });
+  }
+  // Trạng thái đóng/mở của 1 trang feedback (public) — trang cookery.html gọi lúc tải.
+  if (p.action === 'wsstatus') {
+    var wsQ = String(p.ws || '').trim();
+    var wsh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WORKSHOP_SHEET); // KHÔNG tự tạo
+    var wf = wsh ? findRow_(wsh, 'ws_id', wsQ) : null;
+    var wsActive = wf ? String(wf.obj.active).toUpperCase() === 'TRUE' : true; // chưa khai báo → mặc định MỞ
+    return jsonOut_({ ok: true, ws: wsQ, active: wsActive, label: wf ? String(wf.obj.label || wsQ) : wsQ });
   }
   return HtmlService.createHtmlOutputFromFile('admin')
     .setTitle('SOL Feedback · Quản trị')
@@ -546,5 +559,90 @@ function setupStaffRoleSheet() {
     try { SpreadsheetApp.getUi().alert('Đã tạo sheet "' + STAFF_SHEET + '".\nPasscode admin mẫu:\n\n' + demo + '\n\n→ Đăng nhập admin.html rồi ĐỔI passcode này ngay.'); } catch (e) {}
   } else {
     Logger.log('staff-role đã có — chỉ làm mới header, giữ nguyên dữ liệu.');
+  }
+}
+
+/* ==================================================================================
+ * PHASE 2b — QUẢN LÝ ĐÓNG/MỞ CÁC TRANG FEEDBACK (sheet `workshops`)
+ * ----------------------------------------------------------------------------------
+ * Admin bật/tắt từng trang. Trang cookery.html hỏi `?action=wsstatus` lúc tải; khi
+ * đóng → hiện thông báo, không cho gửi. doPost cũng chặn ghi nếu workshop đã đóng
+ * (phòng thủ 2 lớp). Workshop CHƯA khai báo trong sheet → mặc định MỞ (fail-open).
+ * ================================================================================== */
+
+var WORKSHOP_SHEET = 'workshops';
+var WORKSHOP_COLUMNS = ['ws_id', 'label', 'active', 'note'];
+
+function getWorkshopsSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(WORKSHOP_SHEET);
+  if (!sh) { sh = ss.insertSheet(WORKSHOP_SHEET); sh.appendRow(WORKSHOP_COLUMNS); sh.setFrozenRows(1); }
+  if (sh.getLastRow() === 0) sh.appendRow(WORKSHOP_COLUMNS);
+  return sh;
+}
+
+function isWorkshopActive_(wsId) {
+  wsId = String(wsId || '').trim();
+  if (!wsId) return true;
+  // Đọc trực tiếp (KHÔNG tự tạo sheet) — tránh side-effect/race trên đường ghi công khai.
+  var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WORKSHOP_SHEET);
+  if (!sh) return true; // chưa có sheet workshops → mặc định MỞ (fail-open)
+  var found = findRow_(sh, 'ws_id', wsId);
+  if (!found) return true; // chưa khai báo → mặc định MỞ
+  return String(found.obj.active).toUpperCase() === 'TRUE';
+}
+
+function apiListWorkshops(token) {
+  requireAuth_(token);
+  var sh = getWorkshopsSheet_();
+  if (sh.getLastRow() < 2) return { ok: true, workshops: [] };
+  var idx = headerIndex_(sh);
+  var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
+  return {
+    ok: true,
+    workshops: vals.map(function (r) {
+      return {
+        ws_id: String(r[idx.ws_id] || ''), label: String(r[idx.label] || ''),
+        active: String(r[idx.active]).toUpperCase() === 'TRUE', note: String(r[idx.note] || '')
+      };
+    })
+  };
+}
+
+function apiSaveWorkshop(token, data) {
+  requireAdmin_(token);
+  data = data || {};
+  var wsId = clean_(data.ws_id).toLowerCase();
+  if (!wsId) return { ok: false, message: 'Cần mã workshop (ws_id).' };
+  upsertRow_(getWorkshopsSheet_(), 'ws_id', wsId, {
+    ws_id: wsId, label: clean_(data.label) || wsId,
+    active: data.active === false ? 'FALSE' : 'TRUE', note: clean_(data.note)
+  });
+  return { ok: true };
+}
+
+function apiSetWorkshopActive(token, wsId, active) {
+  var sess = requireAdmin_(token);
+  var sh = getWorkshopsSheet_();
+  var found = findRow_(sh, 'ws_id', clean_(wsId).toLowerCase());
+  if (!found) return { ok: false, message: 'Không tìm thấy workshop.' };
+  updateCells_(sh, found.rowIndex, { active: active ? 'TRUE' : 'FALSE' });
+  staffTelegram_((active ? '🟢 MỞ' : '🔴 ĐÓNG') + ' trang feedback: ' + (clean_(found.obj.label) || wsId) + '\n— ' + sess.name);
+  return { ok: true };
+}
+
+// Chạy tay 1 lần: tạo sheet workshops + nạp sẵn dòng cookery (mở).
+function setupWorkshopsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(WORKSHOP_SHEET) || ss.insertSheet(WORKSHOP_SHEET);
+  sh.getRange(1, 1, 1, sh.getMaxColumns()).clearContent();
+  sh.getRange(1, 1, 1, WORKSHOP_COLUMNS.length).setValues([WORKSHOP_COLUMNS]).setFontWeight('bold');
+  sh.setFrozenRows(1);
+  if (sh.getLastRow() < 2) {
+    sh.appendRow(['cookery', 'SOL Cookery', 'TRUE', 'Workshop nấu ăn']);
+    Logger.log('✅ workshops sẵn sàng (đã nạp cookery = MỞ).');
+    try { SpreadsheetApp.getUi().alert('Đã tạo sheet "' + WORKSHOP_SHEET + '" + nạp dòng cookery (đang MỞ).'); } catch (e) {}
+  } else {
+    Logger.log('workshops đã có — chỉ làm mới header, giữ nguyên dữ liệu.');
   }
 }

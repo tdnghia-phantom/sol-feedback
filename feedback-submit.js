@@ -137,6 +137,7 @@ if (typeof document !== 'undefined') {
     var startedAt = Date.now();
     var submitting = false;
     var advanceTimer = null;
+    var introTimer = null; // thẻ mở đầu tự chuyển sang câu 1 sau 20s
 
     function $(sel, root) { return (root || document).querySelector(sel); }
     function $all(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
@@ -234,6 +235,16 @@ if (typeof document !== 'undefined') {
     }
 
     function showThanks() {
+      if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+      var app = $('[data-fb-app]');
+      var intro = $('[data-fb-intro]');
+      // CHG: gửi xong → hiện lại THẺ ĐẦU TIÊN, nhưng KHÔNG còn nút "Gửi cảm nhận" (class is-submitted)
+      if (app && intro) {
+        app.classList.add('is-intro', 'is-submitted');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+      // Fallback (classic / trang không có thẻ mở đầu): giữ nguyên màn cảm ơn cũ
       var form = $('[data-fb-form]');
       var thanks = $('[data-fb-thanks]');
       var topbar = $('[data-fb-topbar]');
@@ -283,6 +294,10 @@ if (typeof document !== 'undefined') {
       }).then(function (res) { return res.json(); })
         .then(function (data) {
           if (data && data.ok) { showThanks(); }
+          else if (data && data.closed) {
+            setSubmitting(false);
+            showError('submit', data.message || 'Trang cảm nhận này đã đóng. Ba Mẹ vui lòng liên hệ SOL qua Zalo 0938.206.968 nhé 🙏');
+          }
           else {
             setSubmitting(false);
             showError('submit', 'Có trục trặc nhỏ khi gửi. Ba mẹ bấm Gửi lại giúp SOL nhé 🙏');
@@ -412,23 +427,49 @@ if (typeof document !== 'undefined') {
       });
     }
 
+    // Vào wizard từ thẻ mở đầu (dùng chung cho: bấm CTA + tự động sau 20s)
+    function startWizard() {
+      var app = $('[data-fb-app]') || document.body;
+      if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+      if (!app.classList.contains('is-intro')) return;                 // đã vào wizard rồi
+      if (app.classList.contains('is-submitted') || app.classList.contains('is-closed')) return;
+      app.classList.remove('is-intro');
+      window.scrollTo({ top: 0, behavior: 'auto' });
+      var h = $('.step.is-active .q');
+      if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+    }
+
+    // Đóng/mở workshop: hỏi backend (best-effort, fail-open). Đóng → hiện thông báo, không cho vào wizard.
+    function checkWorkshopStatus() {
+      var endpoint = FEEDBACK_CONFIG.ENDPOINT;
+      if (!endpoint || endpoint.indexOf('{{') !== -1) return;          // chưa cấu hình ENDPOINT
+      var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
+      if (!wsId) return;
+      var app = $('[data-fb-app]') || document.body;
+      var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
+      fetch(endpoint + sep + 'action=wsstatus&ws=' + encodeURIComponent(wsId))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d && d.ok && d.active === false) {
+            if (introTimer) { clearTimeout(introTimer); introTimer = null; }
+            app.classList.add('is-intro', 'is-closed');
+          }
+        })
+        .catch(function () { /* fail-open: lỗi mạng / backend chưa cập nhật → trang vẫn dùng bình thường */ });
+    }
+
     function init() {
-      // Thẻ mở đầu (tùy chọn): [data-fb-intro] + nút [data-fb-start] → vào wizard
+      // Thẻ mở đầu (tùy chọn): [data-fb-intro] + nút [data-fb-start] → vào wizard; hoặc tự chuyển sau 20s
       var intro = $('[data-fb-intro]');
       if (intro) {
         var startBtn = $('[data-fb-start]', intro);
-        var app = $('[data-fb-app]') || document.body;
-        if (startBtn) startBtn.addEventListener('click', function () {
-          intro.hidden = true;
-          app.classList.remove('is-intro');
-          window.scrollTo({ top: 0, behavior: 'auto' });
-          var h = $('.step.is-active .q');
-          if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
-        });
+        if (startBtn) startBtn.addEventListener('click', startWizard);
+        introTimer = setTimeout(startWizard, 20000); // 20 giây tự chuyển sang câu 1
       }
       var steps = $all('[data-fb-step]');
       if (steps.length > 0) initWizard(steps);
       else initClassic();
+      checkWorkshopStatus();
     }
 
     if (document.readyState === 'loading') {
