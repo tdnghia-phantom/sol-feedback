@@ -1,6 +1,6 @@
 # DEPLOY RUNBOOK — Trang Feedback đa-workshop SOL
 
-> Phiên bản: v1.3.0 (CHG-01 bỏ intent · CHG-02 WIZARD · CHG-03 thẻ mở đầu theo poster) · Ngày: 2026-07-19 · Thời gian deploy dự kiến: **~15 phút**
+> Phiên bản: v1.3.0 (CHG-01 bỏ intent · CHG-02 WIZARD · CHG-03 thẻ mở đầu theo poster) + **Phase 2 (trang quản trị admin.html + staff-role)** · Ngày: 2026-07-19 · Thời gian deploy dự kiến: **~15 phút** (+5' cho admin)
 > Nguyên tắc sắt: project ĐỘC LẬP 100% khỏi landing — **Sheet MỚI, Apps Script MỚI,
 > repo MỚI, subdomain riêng.** Không dùng lại bất kỳ ID/URL nào của landing.
 
@@ -9,13 +9,20 @@
 1. Tạo **Google Sheet MỚI**, đặt tên ví dụ `SOL Feedback (ALL workshops)`.
 2. Menu `Tiện ích mở rộng → Apps Script` → xóa code mặc định → dán toàn bộ
    `apps-script/Code.gs` → Lưu.
+   **Thêm file HTML cho trang quản trị:** trong editor bấm `+ → HTML`, đặt tên **`admin`**
+   (Apps Script tự thêm đuôi → file `admin.html`) → dán toàn bộ `apps-script/admin.html` → Lưu.
 3. Trong editor, chọn hàm **`setupFeedbackSheet`** → Run → cấp quyền khi được hỏi.
    → Kiểm tra Sheet: có tab `feedback` (13 cột, hàng 1 đóng băng, cột I=phone định
    dạng text) + tab `dashboard` (4 bảng thống kê).
+   Chọn tiếp hàm **`setupStaffRoleSheet`** → Run → tạo tab **`staff-role`** (7 cột:
+   `passcode·name·role·active·telegram_user_id·phone·note`) + 1 dòng admin mẫu.
+   **Xem hộp thoại/Executions log để lấy passcode admin mẫu** (dạng `ADMIN-FB…`).
 4. `Deploy → New deployment → Web app`:
    - Execute as: **Me** · Who has access: **Anyone**
    - Bấm Deploy → **copy URL** dạng `https://script.google.com/macros/s/…/exec`.
-5. Mở URL đó bằng trình duyệt (GET) → phải thấy `{"ok":true,"service":"sol-feedback"...}` ✅ (TC-13).
+5. Health check: mở **`<URL>?action=health`** trên trình duyệt (GET) → phải thấy
+   `{"ok":true,"service":"sol-feedback"...}` ✅ (TC-13). *(Mở URL không kèm `?action=health`
+   giờ ra **trang đăng nhập quản trị** — đúng, xem Bước 6.)*
 
 ## Bước 2 — Telegram (3 phút)
 
@@ -51,6 +58,35 @@ bằng URL Web app vừa copy ở Bước 1.4. **Chỉ sửa đúng 1 chỗ này
 Mở `docs/test-plan-uat.md` → chạy TC-01 → TC-13 (checklist tick từng ô).
 Đặc biệt đừng bỏ: **TC-07/08** (Telegram đúng ngưỡng) · **TC-10** (số 0 đầu SĐT) ·
 **TC-16** (rà chéo không dính landing).
+
+## Bước 6 — TRANG QUẢN TRỊ `admin.html` (Phase 2 — mới)
+
+> Dashboard giờ là **giao diện Apps Script có đăng nhập theo role**, không chỉ là tab Sheet.
+> Cơ chế bảo mật giống project Landingpage-SOL-COOK: đăng nhập **chỉ bằng passcode**, role
+> do server tra sheet `staff-role` (không có ô chọn role), phiên token ~6h, hàm admin bị
+> chặn ở **tầng server** (staff gọi vào là bị từ chối, không chỉ ẩn nút).
+
+1. **URL trang quản trị = chính URL Web app** (`https://script.google.com/macros/s/…/exec`,
+   không kèm `?action=`). Mở ra → màn **Đăng nhập** (1 ô passcode).
+2. Đăng nhập bằng **passcode admin mẫu** lấy ở Bước 1.3 (`ADMIN-FB…`).
+   → Vào được 3 tab: **💬 Cảm nhận** · **📊 Dashboard** · **👤 Nhân viên**.
+3. **ĐỔI passcode admin ngay:** tab **Nhân viên** → bấm **Sửa** dòng "Admin SOL" → đổi ô
+   *Passcode* sang mã riêng của bạn → **Lưu**. *(Passcode cũ vẫn còn tới khi bạn xóa/khóa
+   dòng cũ — nếu đổi passcode nghĩa là tạo dòng mới, hãy khóa dòng `ADMIN-FB…` cũ.)*
+4. **Thêm nhân viên:** tab Nhân viên → điền `passcode·tên·vai trò·telegram_user_id·SĐT·ghi chú`
+   → Lưu. Role `staff` chỉ thấy tab **Cảm nhận**; role `admin` thấy cả 3 tab.
+5. **Cột `telegram_user_id`**: điền user_id Telegram (số) của từng người — hiện để làm danh
+   bạ/whitelist cho bot Telegram sau này (giống Landing Phase 3). Để trống nếu chưa dùng.
+6. **Quy trình xử lý ≤2★ ngay trong trang**: tab Cảm nhận → lọc **"≤ 2★"** → đọc góp ý/SĐT →
+   gọi phụ huynh → gõ kết quả vào ô **Ghi chú xử lý** của đúng dòng → **Lưu note** (ghi thẳng
+   vào cột `note` của Sheet).
+
+**Kiểm thử nhanh (tự kiểm):**
+- [ ] Login sai passcode → báo lỗi, không vào.
+- [ ] Login admin → 3 tab; login staff → **KHÔNG thấy** Dashboard/Nhân viên.
+- [ ] Mở DevTools console gọi `google.script.run…apiDashboard(token_staff)` → **bị từ chối**
+  (`FORBIDDEN`), không lộ số liệu.
+- [ ] `<URL>?action=health` vẫn trả JSON `{ok:true}` (form phụ huynh không bị ảnh hưởng).
 
 ---
 
@@ -97,6 +133,8 @@ Ví dụ thêm workshop Science:
 ## Còn `[CẦN VERIFY]` (chốt trước go-live)
 
 - [ ] `APPS_SCRIPT_FEEDBACK_URL` (Bước 1.4 → Bước 3)
+- [ ] **Passcode admin thật** — đổi khỏi mã mẫu `ADMIN-FB…` ngay sau lần đăng nhập đầu (Bước 6.3)
+- [ ] **Nhập nhân viên + role + telegram_user_id** vào `staff-role` (Bước 6.4–6.5)
 - [ ] `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` — dùng lại bot cũ hay tách group riêng?
 - [ ] Link group Zalo phụ huynh (nếu muốn hiện nút ở màn cảm ơn) → `window.ZALO_GROUP_URL` trong `cookery.html`
 - [ ] Link **Chính sách bảo vệ dữ liệu cá nhân** của SOL → chèn vào `privacy-note`

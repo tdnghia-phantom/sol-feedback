@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOL Feedback · Quản trị</title>
+<style>
+  :root{
+    --cream:#FAF4ED; --card:#fff; --olive:#6C813E; --olive-deep:#4E6128;
+    --terra:#C74B1F; --amber:#F5A623; --blue:#0747A3; --ink:#33383B;
+    --muted:#8B8272; --line:#EADFC9; --ok:#2E7D32; --bad:#C74B1F;
+  }
+  *{box-sizing:border-box; margin:0; padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+    color:var(--ink); background:var(--cream); font-size:15px; line-height:1.5; -webkit-text-size-adjust:100%}
+  button{font-family:inherit; cursor:pointer}
+  .hidden{display:none !important}
+
+  /* ---------- LOGIN ---------- */
+  .login-wrap{min-height:100vh; display:grid; place-items:center; padding:22px}
+  .login-card{background:var(--card); border:1px solid var(--line); border-radius:20px; padding:30px 24px;
+    width:100%; max-width:380px; box-shadow:0 10px 34px rgba(78,97,40,.10); text-align:center}
+  .login-card .brand{font-weight:800; font-size:22px; color:var(--olive-deep)}
+  .login-card .brand span{color:var(--terra)}
+  .login-card .sub{color:var(--muted); font-size:13.5px; margin:6px 0 20px; font-weight:600}
+  .field{text-align:left; margin-bottom:14px}
+  .field label{display:block; font-weight:700; font-size:13px; color:var(--olive-deep); margin-bottom:6px}
+  input[type=text],input[type=password],input[type=tel],select,textarea{
+    width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:12px; font-size:16px;
+    background:#fff; color:var(--ink); outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--olive)}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; border:none; border-radius:12px;
+    padding:12px 18px; font-weight:800; font-size:15px; color:#fff; background:var(--olive); width:100%}
+  .btn:hover{background:var(--olive-deep)}
+  .btn:disabled{opacity:.6; cursor:not-allowed}
+  .btn.ghost{background:#fff; color:var(--olive-deep); border:1.5px solid var(--line); width:auto}
+  .btn.ghost:hover{background:#F3EFE4}
+  .btn.small{padding:8px 12px; font-size:13px; border-radius:10px; width:auto}
+  .btn.terra{background:var(--terra)} .btn.terra:hover{background:#a53c17}
+  .err{color:var(--bad); font-weight:700; font-size:13.5px; margin-top:10px; min-height:18px}
+
+  /* ---------- SHELL ---------- */
+  .topbar{position:sticky; top:0; z-index:20; background:#fff; border-bottom:1px solid var(--line);
+    display:flex; align-items:center; gap:10px; padding:11px 16px}
+  .topbar .t-title{font-weight:800; color:var(--olive-deep); font-size:15.5px}
+  .topbar .spacer{flex:1}
+  .topbar .who{font-weight:700; font-size:13px; color:var(--ink)}
+  .chip-role{font-size:11px; font-weight:800; padding:3px 9px; border-radius:999px; text-transform:uppercase; letter-spacing:.4px}
+  .chip-role.admin{background:#EDE3C6; color:var(--olive-deep)}
+  .chip-role.staff{background:#E3ECF6; color:var(--blue)}
+  .tabs{display:flex; gap:4px; padding:8px 12px 0; background:#fff; border-bottom:1px solid var(--line);
+    position:sticky; top:49px; z-index:19; overflow-x:auto}
+  .tab{border:none; background:transparent; padding:10px 14px; font-weight:800; font-size:14px; color:var(--muted);
+    border-bottom:3px solid transparent; white-space:nowrap}
+  .tab.active{color:var(--olive-deep); border-bottom-color:var(--olive)}
+  .wrap{max-width:920px; margin:0 auto; padding:16px}
+
+  /* ---------- FILTER BAR ---------- */
+  .filters{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px}
+  .filters input,.filters select{width:auto; flex:1; min-width:130px; padding:9px 11px; font-size:14px}
+
+  /* ---------- CARD LIST ---------- */
+  .fb-card{background:#fff; border:1px solid var(--line); border-radius:14px; padding:13px 15px; margin-bottom:11px}
+  .fb-card.low{border-color:#E7B4A2; background:#FCF3EF}
+  .fb-head{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px}
+  .stars{color:var(--amber); font-size:15px; letter-spacing:1px}
+  .stars .off{color:#E0D6C2}
+  .pill{font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:#F0EADB; color:var(--olive-deep)}
+  .pill.src{background:#E3ECF6; color:var(--blue)}
+  .pill.enjoy{background:#EAF3E1; color:var(--olive-deep)}
+  .pill.star5{background:#FDECC8; color:#8a6100}
+  .fb-when{color:var(--muted); font-size:12px; margin-left:auto}
+  .fb-body{font-size:14.5px; margin:4px 0}
+  .fb-liked{display:flex; flex-wrap:wrap; gap:5px; margin:7px 0}
+  .fb-liked span{font-size:11.5px; background:#F0EADB; border-radius:8px; padding:2px 7px; color:var(--olive-deep)}
+  .fb-contact{font-size:13px; color:var(--muted); margin-top:5px}
+  .fb-contact b{color:var(--ink)}
+  .note-row{display:flex; gap:7px; margin-top:9px}
+  .note-row input{flex:1; padding:8px 10px; font-size:13.5px}
+  .muted{color:var(--muted)} .center{text-align:center}
+  .loading{text-align:center; color:var(--muted); padding:30px; font-weight:700}
+
+  /* ---------- DASHBOARD ---------- */
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:11px; margin-bottom:18px}
+  .kpi{background:#fff; border:1px solid var(--line); border-radius:14px; padding:15px}
+  .kpi .n{font-size:26px; font-weight:800; color:var(--olive-deep)}
+  .kpi .l{font-size:12.5px; color:var(--muted); font-weight:700; margin-top:2px}
+  .kpi.warn .n{color:var(--terra)}
+  .panel{background:#fff; border:1px solid var(--line); border-radius:14px; padding:15px; margin-bottom:14px}
+  .panel h3{font-size:14.5px; color:var(--olive-deep); margin-bottom:11px}
+  .bar-row{display:flex; align-items:center; gap:9px; margin-bottom:7px; font-size:13.5px}
+  .bar-row .lab{width:74px; font-weight:700}
+  .bar-track{flex:1; background:#F0EADB; border-radius:999px; height:16px; overflow:hidden}
+  .bar-fill{height:100%; background:var(--olive); border-radius:999px}
+  .bar-row .val{width:56px; text-align:right; color:var(--muted); font-weight:700}
+  table{width:100%; border-collapse:collapse; font-size:13.5px}
+  th,td{text-align:left; padding:7px 9px; border-bottom:1px solid var(--line)}
+  th{color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.4px}
+  td.num,th.num{text-align:right}
+
+  /* ---------- STAFF ---------- */
+  .staff-form{background:#fff; border:1px solid var(--line); border-radius:14px; padding:15px; margin-bottom:16px}
+  .staff-grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .staff-grid .full{grid-column:1 / -1}
+  .row-actions{display:flex; gap:6px; flex-wrap:wrap}
+  .tag-lock{font-size:11px; font-weight:800; color:var(--bad)}
+  .tag-on{font-size:11px; font-weight:800; color:var(--ok)}
+
+  /* ---------- TOAST ---------- */
+  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--olive-deep); color:#fff;
+    padding:11px 18px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.2);
+    opacity:0; transition:opacity .2s, transform .2s; pointer-events:none; z-index:50; max-width:90vw}
+  #toast.show{opacity:1; transform:translateX(-50%) translateY(-4px)}
+  #toast.bad{background:var(--bad)}
+  @media (max-width:520px){ .staff-grid{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN ==================== -->
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="brand">SOL <span>Feedback</span></div>
+    <div class="sub">Trang quản trị · nhập passcode để đăng nhập</div>
+    <div class="field">
+      <label for="passcode">Passcode</label>
+      <input type="password" id="passcode" autocomplete="off" placeholder="••••••••" autofocus>
+    </div>
+    <button class="btn" id="loginBtn">Đăng nhập</button>
+    <div class="err" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ==================== APP SHELL ==================== -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="t-title">SOL Feedback · Quản trị</div>
+    <div class="spacer"></div>
+    <span class="who" id="whoName"></span>
+    <span class="chip-role" id="whoRole"></span>
+    <button class="btn ghost small" id="logoutBtn">Đăng xuất</button>
+  </div>
+  <div class="tabs">
+    <button class="tab active" data-tab="feedback">💬 Cảm nhận</button>
+    <button class="tab admin-only" data-tab="dashboard">📊 Dashboard</button>
+    <button class="tab admin-only" data-tab="staff">👤 Nhân viên</button>
+  </div>
+
+  <div class="wrap">
+    <!-- TAB CẢM NHẬN -->
+    <section id="tab-feedback">
+      <div class="filters">
+        <input type="text" id="fQ" placeholder="Tìm tên / SĐT / góp ý…">
+        <select id="fRating">
+          <option value="">Mọi mức sao</option>
+          <option value="low">≤ 2★ (cần xử lý)</option>
+          <option value="5">5★</option>
+          <option value="4">4★</option>
+          <option value="3">3★</option>
+          <option value="2">2★</option>
+          <option value="1">1★</option>
+        </select>
+        <input type="text" id="fWs" placeholder="Workshop (vd cookery)">
+        <button class="btn ghost small" id="fReload">Lọc / Tải lại</button>
+      </div>
+      <div id="fbList"><div class="loading">Đang tải…</div></div>
+    </section>
+
+    <!-- TAB DASHBOARD -->
+    <section id="tab-dashboard" class="hidden">
+      <div id="dashBody"><div class="loading">Đang tải…</div></div>
+    </section>
+
+    <!-- TAB NHÂN VIÊN -->
+    <section id="tab-staff" class="hidden">
+      <div class="staff-form">
+        <h3 style="margin-bottom:11px;color:var(--olive-deep)">Thêm / sửa nhân viên</h3>
+        <div class="staff-grid">
+          <div class="field"><label>Passcode *</label><input type="text" id="sPass" placeholder="mã đăng nhập cá nhân"></div>
+          <div class="field"><label>Tên *</label><input type="text" id="sName" placeholder="Họ tên"></div>
+          <div class="field"><label>Vai trò</label>
+            <select id="sRole"><option value="staff">staff</option><option value="admin">admin</option></select>
+          </div>
+          <div class="field"><label>telegram_user_id</label><input type="text" id="sTgId" inputmode="numeric" placeholder="vd 123456789 (tùy chọn)"></div>
+          <div class="field"><label>SĐT</label><input type="tel" id="sPhone" placeholder="tùy chọn"></div>
+          <div class="field"><label>Ghi chú</label><input type="text" id="sNote" placeholder="tùy chọn"></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button class="btn small" id="sSave">💾 Lưu nhân viên</button>
+          <button class="btn ghost small" id="sClear">Làm mới form</button>
+        </div>
+        <div class="muted" style="font-size:12px;margin-top:8px">Sửa: bấm “Sửa” ở bảng dưới để nạp lại đúng passcode rồi lưu đè.</div>
+      </div>
+      <div class="panel">
+        <h3>Danh sách nhân viên</h3>
+        <div style="overflow-x:auto"><table id="staffTable"><tbody><tr><td class="loading">Đang tải…</td></tr></tbody></table></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ============ GLUE: gọi server qua google.script.run, trả Promise ============ */
+function run(fn){
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve, reject){
+    if (typeof google === 'undefined' || !google.script || !google.script.run){
+      reject(new Error('Trang này phải được mở qua URL Apps Script (…/exec).')); return;
+    }
+    var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function(e){ reject(e); });
+    r[fn].apply(r, args);
+  });
+}
+var TOKEN = sessionStorage.getItem('sol_fb_token') || '';
+var ME = { name:'', role:'' };
+var $ = function(id){ return document.getElementById(id); };
+function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); setTimeout(function(){ t.className=''; }, 2600); }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+function errMsg(e){ var m=String(e && e.message || e || ''); if(m.indexOf('AUTH_EXPIRED')>-1) return 'Phiên đã hết hạn — đăng nhập lại.'; if(m.indexOf('FORBIDDEN')>-1) return 'Bạn không có quyền admin cho mục này.'; return m || 'Có lỗi xảy ra.'; }
+function starsHtml(n){ n=Number(n)||0; var s=''; for(var i=1;i<=5;i++){ s += i<=n ? '★' : '<span class="off">★</span>'; } return '<span class="stars">'+s+'</span>'; }
+function fmtWhen(iso){ var m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); return m ? (m[3]+'/'+m[2]+' '+m[4]+':'+m[5]) : esc(iso||''); }
+
+/* ============ LOGIN ============ */
+function showLogin(){ $('login').classList.remove('hidden'); $('app').classList.add('hidden'); }
+function showApp(){ $('login').classList.add('hidden'); $('app').classList.remove('hidden'); }
+
+async function doLogin(){
+  var pc = $('passcode').value.trim();
+  $('loginErr').textContent = '';
+  if(!pc){ $('loginErr').textContent='Vui lòng nhập passcode.'; return; }
+  $('loginBtn').disabled = true;
+  try {
+    var res = await run('apiLogin', pc);
+    if(!res || !res.ok){ $('loginErr').textContent = (res && res.message) || 'Đăng nhập thất bại.'; return; }
+    TOKEN = res.token; sessionStorage.setItem('sol_fb_token', TOKEN);
+    ME = { name: res.name, role: res.role };
+    enterApp();
+  } catch(e){ $('loginErr').textContent = errMsg(e); }
+  finally { $('loginBtn').disabled = false; }
+}
+
+async function doLogout(){
+  try { await run('apiLogout', TOKEN); } catch(e){}
+  TOKEN=''; sessionStorage.removeItem('sol_fb_token'); ME={name:'',role:''};
+  $('passcode').value=''; showLogin();
+}
+
+/* ============ APP ============ */
+function enterApp(){
+  $('whoName').textContent = ME.name;
+  var rc = $('whoRole'); rc.textContent = ME.role; rc.className = 'chip-role ' + (ME.role==='admin'?'admin':'staff');
+  var isAdmin = ME.role === 'admin';
+  document.querySelectorAll('.admin-only').forEach(function(el){ el.classList.toggle('hidden', !isAdmin); });
+  showApp();
+  switchTab('feedback');
+}
+
+function switchTab(name){
+  // staff không được vào tab admin
+  if((name==='dashboard'||name==='staff') && ME.role!=='admin') name='feedback';
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab')===name); });
+  ['feedback','dashboard','staff'].forEach(function(n){ $('tab-'+n).classList.toggle('hidden', n!==name); });
+  if(name==='feedback') loadFeedback();
+  else if(name==='dashboard') loadDashboard();
+  else if(name==='staff') loadStaff();
+}
+
+/* ---- TAB CẢM NHẬN ---- */
+async function loadFeedback(){
+  var box = $('fbList'); box.innerHTML = '<div class="loading">Đang tải…</div>';
+  var filter = { q: $('fQ').value.trim(), rating: $('fRating').value, ws: $('fWs').value.trim() };
+  try {
+    var res = await run('apiListFeedback', TOKEN, filter);
+    var rows = (res && res.rows) || [];
+    if(!rows.length){ box.innerHTML = '<div class="loading">Chưa có cảm nhận nào khớp bộ lọc.</div>'; return; }
+    box.innerHTML = rows.map(fbCard).join('');
+    box.querySelectorAll('[data-save]').forEach(function(btn){
+      btn.addEventListener('click', function(){ saveNote(btn.getAttribute('data-save'), btn); });
+    });
+  } catch(e){ box.innerHTML = '<div class="loading">'+esc(errMsg(e))+'</div>'; if(String(e).indexOf('AUTH_EXPIRED')>-1) doLogout(); }
+}
+function fbCard(o){
+  var low = o.rating>=1 && o.rating<=2;
+  var liked = (o.liked||[]).map(function(x){ return '<span>'+esc(x)+'</span>'; }).join('');
+  var contact = [];
+  if(o.parent_name) contact.push('<b>'+esc(o.parent_name)+'</b>');
+  if(o.phone) contact.push(esc(o.phone));
+  return '<div class="fb-card'+(low?' low':'')+'">'
+    + '<div class="fb-head">'+ starsHtml(o.rating)
+    + ' <span class="pill">'+esc(o.ws_id||'—')+'</span>'
+    + (o.child_enjoy ? ' <span class="pill enjoy">'+esc(o.child_enjoy)+'</span>' : '')
+    + (o.utm_source ? ' <span class="pill src">'+esc(o.utm_source)+'</span>' : '')
+    + (o.allow_testimonial && o.rating===5 ? ' <span class="pill star5">🌟 testimonial OK</span>' : '')
+    + ' <span class="fb-when">'+fmtWhen(o.created_at)+'</span></div>'
+    + (o.comment ? '<div class="fb-body">“'+esc(o.comment)+'”</div>' : '<div class="fb-body muted">(không có góp ý)</div>')
+    + (liked ? '<div class="fb-liked">'+liked+'</div>' : '')
+    + (contact.length ? '<div class="fb-contact">📞 '+contact.join(' · ')+'</div>' : '')
+    + '<div class="note-row"><input type="text" id="note-'+esc(o.submission_id)+'" placeholder="Ghi chú xử lý (vd: đã gọi PH lúc 15h)…" value="'+esc(o.note)+'">'
+    + '<button class="btn small'+(low?' terra':'')+'" data-save="'+esc(o.submission_id)+'">Lưu note</button></div>'
+    + '</div>';
+}
+async function saveNote(id, btn){
+  var input = $('note-'+id); if(!input) return;
+  btn.disabled = true;
+  try { var res = await run('apiSaveNote', TOKEN, id, input.value); if(res && res.ok) toast('✓ Đã lưu ghi chú'); else toast((res&&res.message)||'Lỗi lưu', true); }
+  catch(e){ toast(errMsg(e), true); }
+  finally { btn.disabled = false; }
+}
+
+/* ---- TAB DASHBOARD ---- */
+async function loadDashboard(){
+  var box = $('dashBody'); box.innerHTML = '<div class="loading">Đang tải…</div>';
+  try {
+    var d = await run('apiDashboard', TOKEN);
+    if(!d || !d.ok){ box.innerHTML='<div class="loading">Không tải được dashboard.</div>'; return; }
+    box.innerHTML = renderDash(d);
+  } catch(e){ box.innerHTML = '<div class="loading">'+esc(errMsg(e))+'</div>'; }
+}
+function renderDash(d){
+  var kpis = '<div class="kpis">'
+    + kpi(d.total, 'Tổng cảm nhận') + kpi(d.todayCount, 'Hôm nay')
+    + kpi(d.avg ? d.avg.toFixed(2)+'★' : '—', 'Điểm trung bình')
+    + kpi(d.lowCount, 'Cần xử lý (≤2★)', d.lowCount>0)
+    + kpi(d.testimonialCount, 'Ứng viên testimonial')
+    + '</div>';
+
+  var maxDist = Math.max(1, d.dist[1],d.dist[2],d.dist[3],d.dist[4],d.dist[5]);
+  var dist = '<div class="panel"><h3>Phân bố sao</h3>';
+  for(var s=5;s>=1;s--){ var c=d.dist[s]||0; dist += '<div class="bar-row"><span class="lab">'+s+'★</span><div class="bar-track"><div class="bar-fill" style="width:'+Math.round(c*100/maxDist)+'%"></div></div><span class="val">'+c+'</span></div>'; }
+  dist += '</div>';
+
+  var byWs = tableFromMap('Theo workshop', d.byWorkshop, 'Workshop');
+  var bySrc = tableFromMap('Hiệu quả kênh (utm_source)', d.bySource, 'Kênh');
+
+  var low = '<div class="panel"><h3>⚠️ Feedback thấp (≤2★) — gọi xử lý trong ngày</h3>';
+  if(!d.lowList.length) low += '<div class="muted center" style="padding:12px">Không có 🎉</div>';
+  else { low += '<div style="overflow-x:auto"><table><thead><tr><th>Lúc</th><th>WS</th><th>Sao</th><th>Góp ý</th><th>Liên hệ</th><th>Note</th></tr></thead><tbody>';
+    low += d.lowList.map(function(o){ return '<tr><td>'+fmtWhen(o.created_at)+'</td><td>'+esc(o.ws_id)+'</td><td>'+o.rating+'★</td><td>'+esc(o.comment||'—')+'</td><td>'+esc([o.parent_name,o.phone].filter(Boolean).join(' · ')||'—')+'</td><td>'+esc(o.note||'')+'</td></tr>'; }).join('');
+    low += '</tbody></table></div>'; }
+  low += '</div>';
+
+  var tst = '<div class="panel"><h3>🌟 Ứng viên testimonial (5★ + cho phép dùng)</h3>';
+  if(!d.testimonialList.length) tst += '<div class="muted center" style="padding:12px">Chưa có</div>';
+  else { tst += '<div style="overflow-x:auto"><table><thead><tr><th>Lúc</th><th>WS</th><th>Góp ý</th><th>Liên hệ</th></tr></thead><tbody>';
+    tst += d.testimonialList.map(function(o){ return '<tr><td>'+fmtWhen(o.created_at)+'</td><td>'+esc(o.ws_id)+'</td><td>'+esc(o.comment||'—')+'</td><td>'+esc([o.parent_name,o.phone].filter(Boolean).join(' · ')||'—')+'</td></tr>'; }).join('');
+    tst += '</tbody></table></div>'; }
+  tst += '</div>';
+
+  return kpis + dist + byWs + bySrc + low + tst;
+}
+function kpi(n,l,warn){ return '<div class="kpi'+(warn?' warn':'')+'"><div class="n">'+esc(n)+'</div><div class="l">'+esc(l)+'</div></div>'; }
+function tableFromMap(title, map, colName){
+  var keys = Object.keys(map||{});
+  if(!keys.length) return '<div class="panel"><h3>'+esc(title)+'</h3><div class="muted center" style="padding:12px">Chưa có dữ liệu</div></div>';
+  keys.sort(function(a,b){ return (map[b].count)-(map[a].count); });
+  var rows = keys.map(function(k){ return '<tr><td>'+esc(k)+'</td><td class="num">'+map[k].count+'</td><td class="num">'+(map[k].avg? map[k].avg.toFixed(2)+'★':'—')+'</td></tr>'; }).join('');
+  return '<div class="panel"><h3>'+esc(title)+'</h3><div style="overflow-x:auto"><table><thead><tr><th>'+esc(colName)+'</th><th class="num">Số FB</th><th class="num">Điểm TB</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
+}
+
+/* ---- TAB NHÂN VIÊN ---- */
+async function loadStaff(){
+  var tb = $('staffTable').querySelector('tbody');
+  tb.innerHTML = '<tr><td class="loading">Đang tải…</td></tr>';
+  try {
+    var res = await run('apiListStaff', TOKEN);
+    var list = (res && res.staff) || [];
+    if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có nhân viên.</td></tr>'; return; }
+    tb.innerHTML = '<tr><th>Tên</th><th>Role</th><th>Telegram</th><th>SĐT</th><th>Trạng thái</th><th></th></tr>'
+      + list.map(staffRow).join('');
+    tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editStaff(JSON.parse(b.getAttribute('data-edit'))); }); });
+    tb.querySelectorAll('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){ toggleStaff(b.getAttribute('data-toggle'), b.getAttribute('data-active')==='1'); }); });
+  } catch(e){ tb.innerHTML = '<tr><td class="loading">'+esc(errMsg(e))+'</td></tr>'; }
+}
+function staffRow(s){
+  var d = esc(JSON.stringify(s));
+  return '<tr><td><b>'+esc(s.name)+'</b>'+(s.note?'<br><span class="muted" style="font-size:12px">'+esc(s.note)+'</span>':'')+'</td>'
+    + '<td>'+esc(s.role)+'</td>'
+    + '<td>'+(s.telegram_user_id?esc(s.telegram_user_id):'<span class="muted">—</span>')+'</td>'
+    + '<td>'+(s.phone?esc(s.phone):'<span class="muted">—</span>')+'</td>'
+    + '<td>'+(s.active?'<span class="tag-on">● Hoạt động</span>':'<span class="tag-lock">● Đã khóa</span>')+'</td>'
+    + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+d+'\'>Sửa</button>'
+    + '<button class="btn ghost small" data-toggle="'+esc(s.passcode)+'" data-active="'+(s.active?'1':'0')+'">'+(s.active?'Khóa':'Mở')+'</button></td></tr>';
+}
+function editStaff(s){
+  $('sPass').value=s.passcode; $('sName').value=s.name; $('sRole').value=(s.role==='admin'?'admin':'staff');
+  $('sTgId').value=s.telegram_user_id||''; $('sPhone').value=s.phone||''; $('sNote').value=s.note||'';
+  window.scrollTo({top:0, behavior:'smooth'});
+  toast('Đã nạp "'+s.name+'" — sửa rồi bấm Lưu');
+}
+function clearStaffForm(){ ['sPass','sName','sTgId','sPhone','sNote'].forEach(function(id){ $(id).value=''; }); $('sRole').value='staff'; }
+async function saveStaff(){
+  var data = { passcode:$('sPass').value.trim(), name:$('sName').value.trim(), role:$('sRole').value,
+    telegram_user_id:$('sTgId').value.trim(), phone:$('sPhone').value.trim(), note:$('sNote').value.trim() };
+  if(!data.passcode || !data.name){ toast('Cần passcode + tên', true); return; }
+  $('sSave').disabled = true;
+  try { var res = await run('apiSaveStaff', TOKEN, data); if(res && res.ok){ toast('✓ Đã lưu nhân viên'); clearStaffForm(); loadStaff(); } else toast((res&&res.message)||'Lỗi', true); }
+  catch(e){ toast(errMsg(e), true); }
+  finally { $('sSave').disabled = false; }
+}
+async function toggleStaff(passcode, active){
+  try { var res = await run('apiSetStaffActive', TOKEN, passcode, !active); if(res && res.ok){ toast(active?'Đã khóa':'Đã mở khóa'); loadStaff(); } else toast((res&&res.message)||'Lỗi', true); }
+  catch(e){ toast(errMsg(e), true); }
+}
+
+/* ============ WIRE EVENTS ============ */
+$('loginBtn').addEventListener('click', doLogin);
+$('passcode').addEventListener('keydown', function(e){ if(e.key==='Enter') doLogin(); });
+$('logoutBtn').addEventListener('click', doLogout);
+$('fReload').addEventListener('click', loadFeedback);
+$('fQ').addEventListener('keydown', function(e){ if(e.key==='Enter') loadFeedback(); });
+$('fRating').addEventListener('change', loadFeedback);
+$('sSave').addEventListener('click', saveStaff);
+$('sClear').addEventListener('click', clearStaffForm);
+document.querySelectorAll('.tab').forEach(function(t){ t.addEventListener('click', function(){ switchTab(t.getAttribute('data-tab')); }); });
+
+/* ============ BOOT: có token cũ → whoami, hết hạn → login ============ */
+(async function boot(){
+  if(!TOKEN){ showLogin(); return; }
+  try {
+    var w = await run('apiWhoami', TOKEN);
+    if(w && w.ok){ ME={name:w.name, role:w.role}; enterApp(); }
+    else { sessionStorage.removeItem('sol_fb_token'); TOKEN=''; showLogin(); }
+  } catch(e){ showLogin(); }
+})();
+</script>
+</body>
+</html>
