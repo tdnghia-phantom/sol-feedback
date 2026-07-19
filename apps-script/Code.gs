@@ -684,15 +684,16 @@ function apiSavePage(token, data) {
   if (!slug) return { ok: false, message: 'Cần mã trang (slug — giá trị ?sw=).' };
   var sh = getPageListSheet_();
   var existed = !!findRow_(sh, 'slug', slug);
-  var openStr = clean_(data.open_at).replace('T', ' ');
-  var closeStr = clean_(data.close_at).replace('T', ' ');
+  // LƯU DẠNG ISO CHUẨN (yyyy-MM-ddTHH:mm:ss+07:00) — giống created_at. Input picker là giờ VN local.
+  var openIso = toIsoVN_(data.open_at);
+  var closeIso = toIsoVN_(data.close_at);
   // VALIDATE cột active theo LỊCH tại thời điểm lưu: có lịch → tự tính BẬT/TẮT theo giờ hiện tại.
   var active;
-  if (openStr || closeStr) active = computeActiveFromSchedule_(openStr, closeStr) ? 'TRUE' : 'FALSE';
+  if (openIso || closeIso) active = computeActiveFromSchedule_(openIso, closeIso) ? 'TRUE' : 'FALSE';
   else active = data.active === false ? 'FALSE' : 'TRUE';
   upsertRow_(sh, 'slug', slug, {
     slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
-    open_at: openStr, close_at: closeStr
+    open_at: openIso, close_at: closeIso
   });
   forcePageTextCols_(sh);
   if (!existed) {
@@ -723,18 +724,36 @@ function apiSetPageActive(token, slug, active) {
 }
 
 /* ---------- LỊCH TỰ ĐỘNG BẬT/TẮT (time-trigger) ---------- */
-// Định dạng ô giờ về 'yyyy-MM-dd HH:mm' (cho picker phía admin đọc lại).
+// Giờ VN local 'yyyy-MM-dd HH:mm' (từ picker) → ISO chuẩn 'yyyy-MM-ddTHH:mm:ss+07:00'. Trống → ''.
+function toIsoVN_(v) {
+  var s = String(v == null ? '' : v).trim().replace('T', ' ');
+  if (!s) return '';
+  var m = s.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+  if (!m) { var ms0 = parseWhen_(v); return ms0 ? Utilities.formatDate(new Date(ms0), TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00' : ''; }
+  try {
+    var d = Utilities.parseDate(m[1] + ' ' + m[2], TZ, 'yyyy-MM-dd HH:mm');
+    return Utilities.formatDate(d, TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00';
+  } catch (e) { return ''; }
+}
+// Giá trị ô giờ (đã lưu ISO) → 'yyyy-MM-dd HH:mm' giờ VN (cho picker phía admin đọc lại).
 function toDatetimeLocal_(v) {
   if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm');
-  return String(v == null ? '' : v).trim().replace('T', ' ');
+  var ms = parseWhen_(v);
+  return ms ? Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM-dd HH:mm') : '';
 }
-// Chuỗi 'yyyy-MM-dd HH:mm' (giờ VN) → ms. Trả 0 nếu trống/sai.
+// Chuỗi giờ → ms. Hỗ trợ ISO có offset/Z (parse tuyệt đối) và 'yyyy-MM-dd HH:mm' (giờ VN). Trống/sai → 0.
 function parseWhen_(v) {
   if (v instanceof Date) return v.getTime();
-  var s = String(v == null ? '' : v).trim().replace('T', ' ');
+  var s = String(v == null ? '' : v).trim();
   if (!s) return 0;
-  try { return Utilities.parseDate(s, TZ, 'yyyy-MM-dd HH:mm').getTime(); }
-  catch (e) { var t = new Date(String(v)).getTime(); return isNaN(t) ? 0 : t; }
+  // ISO có offset (+07:00 / Z) → parse tuyệt đối, không lệ thuộc TZ runtime
+  if (/[T ]\d{2}:\d{2}/.test(s) && /([+-]\d{2}:?\d{2}|Z)$/.test(s)) {
+    var t = new Date(s).getTime(); if (!isNaN(t)) return t;
+  }
+  // 'yyyy-MM-dd HH:mm' hoặc 'yyyy-MM-ddTHH:mm' (giờ VN, không offset) → theo TZ
+  var m = s.replace('T', ' ').match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
+  if (m) { try { return Utilities.parseDate(m[1], TZ, 'yyyy-MM-dd HH:mm').getTime(); } catch (e) {} }
+  var t2 = new Date(s).getTime(); return isNaN(t2) ? 0 : t2;
 }
 function fmtWhen_(ms) { return Utilities.formatDate(new Date(ms), TZ, 'HH:mm dd-MM-yyyy'); }
 
