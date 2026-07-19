@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>SOL Feedback — Test</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;
+    background:#FAF4ED; color:#4E6128;
+    min-height:100vh; min-height:100dvh; display:grid; place-items:center; padding:20px;
+  }
+  .test-word{font-size:clamp(72px, 34vw, 220px); font-weight:900; letter-spacing:2px; line-height:1}
+</style>
+</head>
+<body>
+  <div class="test-word">test</div>
+
+  <script>
+    // Trang test tham gia hệ thống bật/tắt: TẮT → feedback-submit.js tự redirect về trang chính.
+    window.WS_ID = 'test';
+  </script>
+  <script src="feedback-submit.js" defer></script>
+</body>
+</html>

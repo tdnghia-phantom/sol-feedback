@@ -87,7 +87,7 @@
     to{opacity:1; transform:translateY(0) scale(1)}
   }
 
-  .hello{font-size:14.5px; color:var(--muted); font-weight:700; margin-bottom:14px}
+  .hello{font-size:14.5px; color:var(--muted); font-weight:700; margin-bottom:14px; text-align:center}
   .hello b{color:var(--terra)}
   .q{
     font-family:'Baloo 2',cursive; font-weight:800; color:var(--olive-deep);
@@ -188,10 +188,6 @@
     display:none; flex-direction:column;
   }
   .app.is-intro .intro{display:flex}
-  /* Workshop đã đóng: ẩn nút Gửi + phụ đề, hiện thông báo đóng */
-  .intro-closed{display:none}
-  .app.is-closed .intro-cta, .app.is-closed .intro-sub{display:none}
-  .app.is-closed .intro-closed{display:block}
   .intro-logos{display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px}
   .intro-logos img{height:44px; width:auto}
   .intro-logos .sep{width:2px; height:32px; background:var(--line); border-radius:2px}
@@ -293,10 +289,6 @@
       <div class="greenbox">Điều SOL mong các con mang về không chỉ là một hộp cookie, mà còn là <b>niềm vui được khám phá</b>, <b>sự tự tin</b> khi dám thử và <b>tình yêu với tiếng Anh</b>.</div>
       <button type="button" class="btn btn-submit intro-cta" data-fb-start>Gửi cảm nhận cho SOL 💌</button>
       <p class="intro-sub">Chỉ 5 câu — khoảng 30 giây thôi ạ!</p>
-      <div class="intro-closed" data-fb-closed>
-        <div class="dash"></div>
-        <p class="intro-p" style="text-align:center;margin-bottom:0">Trang cảm nhận của workshop này hiện đã đóng. Ba Mẹ vui lòng liên hệ SOL qua Zalo <b class="b-terra">0938.206.968</b> nhé 💛</p>
-      </div>
     </section>
 
     <!-- ===== WIZARD (không dùng thẻ form — FR-04) ===== -->
@@ -315,9 +307,6 @@
         </div>
         <p class="rating-caption" data-fb-rating-caption aria-live="polite">&nbsp;</p>
         <p class="err" data-fb-error="rating" aria-live="polite"></p>
-        <div class="step-actions">
-          <button type="button" class="btn btn-next" data-fb-next hidden>Tiếp tục ➜</button>
-        </div>
       </section>
 
       <!-- BƯỚC 2 · child_enjoy (bắt buộc, auto-advance) -->
@@ -329,9 +318,6 @@
           <button type="button" class="opt" data-chip="Chưa thích" aria-pressed="false"><span class="em">😕</span>Chưa thích lắm</button>
         </div>
         <p class="err" data-fb-error="child_enjoy" aria-live="polite"></p>
-        <div class="step-actions">
-          <button type="button" class="btn btn-next" data-fb-next hidden>Tiếp tục ➜</button>
-        </div>
       </section>
 
       <!-- BƯỚC 3 · liked (tùy chọn, multi) -->

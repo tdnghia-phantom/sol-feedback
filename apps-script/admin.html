@@ -110,6 +110,28 @@
   .tag-on{font-size:11px; font-weight:800; color:var(--ok)}
   .ws-link{display:inline-block; margin-top:3px; font-size:11.5px; color:var(--blue); overflow-wrap:anywhere}
 
+  /* ---------- SUB-TABS QUẢN LÝ ---------- */
+  .subtabs{display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap}
+  .subtab{border:1.5px solid var(--line); background:#fff; color:var(--muted); font-weight:800; font-size:13.5px;
+    padding:8px 14px; border-radius:999px}
+  .subtab.active{background:var(--olive); color:#fff; border-color:var(--olive)}
+  .sub-head{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+  .sub-hint{font-size:12px}
+
+  /* ---------- MODAL ---------- */
+  .modal-overlay{position:fixed; inset:0; background:rgba(51,56,59,.5); display:flex; align-items:center;
+    justify-content:center; padding:18px; z-index:60}
+  .modal-box{background:#fff; border-radius:18px; width:100%; max-width:440px; max-height:88vh; overflow:auto;
+    box-shadow:0 24px 60px rgba(0,0,0,.28)}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; padding:15px 18px 6px; font-weight:800;
+    color:var(--olive-deep); font-size:16px}
+  .modal-x{border:none; background:transparent; font-size:19px; color:var(--muted); cursor:pointer; line-height:1}
+  .modal-body{padding:6px 18px 4px}
+  .modal-body .field{margin-bottom:12px}
+  .modal-body p{font-size:14.5px; line-height:1.55}
+  .modal-actions{display:flex; gap:8px; justify-content:flex-end; padding:10px 18px 16px}
+  .modal-actions .btn{width:auto; min-width:96px}
+
   /* ---------- TOAST ---------- */
   #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--olive-deep); color:#fff;
     padding:11px 18px; border-radius:12px; font-weight:700; font-size:14px; box-shadow:0 8px 24px rgba(0,0,0,.2);
@@ -147,8 +169,7 @@
   <div class="tabs">
     <button class="tab active" data-tab="feedback">💬 Cảm nhận</button>
     <button class="tab admin-only" data-tab="dashboard">📊 Dashboard</button>
-    <button class="tab admin-only" data-tab="workshops">🗂️ Trang feedback</button>
-    <button class="tab admin-only" data-tab="staff">👤 Nhân viên</button>
+    <button class="tab admin-only" data-tab="manage">🛠️ Quản lý</button>
   </div>
 
   <div class="wrap">
@@ -176,52 +197,32 @@
       <div id="dashBody"><div class="loading">Đang tải…</div></div>
     </section>
 
-    <!-- TAB NHÂN VIÊN -->
-    <section id="tab-staff" class="hidden">
-      <div class="staff-form">
-        <h3 style="margin-bottom:11px;color:var(--olive-deep)">Thêm / sửa nhân viên</h3>
-        <div class="staff-grid">
-          <div class="field"><label>Passcode *</label><input type="text" id="sPass" placeholder="mã đăng nhập cá nhân"></div>
-          <div class="field"><label>Tên *</label><input type="text" id="sName" placeholder="Họ tên"></div>
-          <div class="field"><label>Vai trò</label>
-            <select id="sRole"><option value="staff">staff</option><option value="admin">admin</option></select>
-          </div>
-          <div class="field"><label>telegram_user_id</label><input type="text" id="sTgId" inputmode="numeric" placeholder="vd 123456789 (tùy chọn)"></div>
-          <div class="field"><label>SĐT</label><input type="tel" id="sPhone" placeholder="tùy chọn"></div>
-          <div class="field"><label>Ghi chú</label><input type="text" id="sNote" placeholder="tùy chọn"></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <button class="btn small" id="sSave">💾 Lưu nhân viên</button>
-          <button class="btn ghost small" id="sClear">Làm mới form</button>
-        </div>
-        <div class="muted" style="font-size:12px;margin-top:8px">Sửa: bấm “Sửa” ở bảng dưới để nạp lại đúng passcode rồi lưu đè.</div>
+    <!-- TAB QUẢN LÝ (Trang Feedback + Nhân viên) -->
+    <section id="tab-manage" class="hidden">
+      <div class="subtabs">
+        <button class="subtab active" data-sub="pages">🗂️ Trang Feedback</button>
+        <button class="subtab" data-sub="staff">👤 Nhân viên</button>
+      </div>
+      <div class="sub-head">
+        <span class="sub-hint muted" id="manageHint"></span>
+        <button class="btn small" id="btnCreate">+ Tạo mới</button>
       </div>
       <div class="panel">
-        <h3>Danh sách nhân viên</h3>
-        <div style="overflow-x:auto"><table id="staffTable"><tbody><tr><td class="loading">Đang tải…</td></tr></tbody></table></div>
+        <div style="overflow-x:auto"><table id="manageTable"><tbody><tr><td class="loading">Đang tải…</td></tr></tbody></table></div>
       </div>
     </section>
+  </div>
+</div>
 
-    <!-- TAB TRANG FEEDBACK (đóng/mở workshop) -->
-    <section id="tab-workshops" class="hidden">
-      <div class="staff-form">
-        <h3 style="margin-bottom:11px;color:var(--olive-deep)">Thêm / sửa trang feedback</h3>
-        <div class="staff-grid">
-          <div class="field"><label>Mã workshop (ws_id) *</label><input type="text" id="wId" placeholder="vd: cookery"></div>
-          <div class="field"><label>Tên hiển thị</label><input type="text" id="wLabel" placeholder="vd: SOL Cookery"></div>
-          <div class="field full"><label>Ghi chú</label><input type="text" id="wNote" placeholder="tùy chọn"></div>
-        </div>
-        <div style="display:flex;gap:8px;margin-top:6px">
-          <button class="btn small" id="wSave">💾 Lưu trang</button>
-          <button class="btn ghost small" id="wClear">Làm mới form</button>
-        </div>
-        <div class="muted" style="font-size:12px;margin-top:8px">Mã <b>ws_id</b> phải khớp <b>?ws=</b> trên link — vd link <b>?ws=cookery</b> ⇒ ws_id = <b>cookery</b>. Đóng một trang ⇒ phụ huynh mở link sẽ thấy thông báo “đã đóng”, không gửi được.</div>
-      </div>
-      <div class="panel">
-        <h3>Các trang feedback trong hệ thống</h3>
-        <div style="overflow-x:auto"><table id="wsTable"><tbody><tr><td class="loading">Đang tải…</td></tr></tbody></table></div>
-      </div>
-    </section>
+<!-- MODAL (tạo/sửa + confirm bật/tắt) -->
+<div id="modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-head"><span id="modalTitle">…</span><button class="modal-x" id="modalX" aria-label="Đóng">✕</button></div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions">
+      <button class="btn ghost small" id="modalCancel">Huỷ</button>
+      <button class="btn small" id="modalOk">Xác nhận</button>
+    </div>
   </div>
 </div>
 
@@ -241,7 +242,7 @@ function run(fn){
 }
 var TOKEN = sessionStorage.getItem('sol_fb_token') || '';
 var ME = { name:'', role:'' };
-var WS_LINK_BASE = 'https://feedback.sol.vn/?sw='; // đường dẫn công khai của trang feedback
+var WS_LINK_BASE = 'https://fbk.solenglishland.vn/?sw='; // đường dẫn công khai của trang feedback
 var $ = function(id){ return document.getElementById(id); };
 function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); setTimeout(function(){ t.className=''; }, 2600); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -285,14 +286,13 @@ function enterApp(){
 }
 
 function switchTab(name){
-  // staff không được vào tab admin
-  if((name==='dashboard'||name==='staff'||name==='workshops') && ME.role!=='admin') name='feedback';
+  // staff CHỈ được vào tab Cảm nhận; Dashboard + Quản lý là admin-only
+  if((name==='dashboard'||name==='manage') && ME.role!=='admin') name='feedback';
   document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t.getAttribute('data-tab')===name); });
-  ['feedback','dashboard','workshops','staff'].forEach(function(n){ $('tab-'+n).classList.toggle('hidden', n!==name); });
+  ['feedback','dashboard','manage'].forEach(function(n){ $('tab-'+n).classList.toggle('hidden', n!==name); });
   if(name==='feedback') loadFeedback();
   else if(name==='dashboard') loadDashboard();
-  else if(name==='workshops') loadWorkshops();
-  else if(name==='staff') loadStaff();
+  else if(name==='manage') loadManage();
 }
 
 /* ---- TAB CẢM NHẬN ---- */
@@ -387,88 +387,122 @@ function tableFromMap(title, map, colName){
   return '<div class="panel"><h3>'+esc(title)+'</h3><div style="overflow-x:auto"><table><thead><tr><th>'+esc(colName)+'</th><th class="num">Số FB</th><th class="num">Điểm TB</th></tr></thead><tbody>'+rows+'</tbody></table></div></div>';
 }
 
-/* ---- TAB NHÂN VIÊN ---- */
-async function loadStaff(){
-  var tb = $('staffTable').querySelector('tbody');
+/* ============ TAB QUẢN LÝ (Trang Feedback + Nhân viên) ============ */
+var manageSub = 'pages';
+function loadManage(){
+  document.querySelectorAll('.subtab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-sub')===manageSub); });
+  $('manageHint').textContent = manageSub==='pages'
+    ? 'Bật: user vào bình thường · Tắt: chuyển về trang chính'
+    : 'staff chỉ thấy tab Cảm nhận';
+  if(manageSub==='pages') loadPages(); else loadStaffList();
+}
+
+/* ---- Trang Feedback ---- */
+async function loadPages(){
+  var tb = $('manageTable').querySelector('tbody');
+  tb.innerHTML = '<tr><td class="loading">Đang tải…</td></tr>';
+  try {
+    var res = await run('apiListPages', TOKEN);
+    var list = (res && res.pages) || [];
+    if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có trang nào. Bấm “+ Tạo mới”.</td></tr>'; return; }
+    tb.innerHTML = '<tr><th>Trang / đường dẫn</th><th>Trạng thái</th><th></th></tr>' + list.map(pageRow).join('');
+    tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ openPageModal(JSON.parse(b.getAttribute('data-edit'))); }); });
+    tb.querySelectorAll('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){ confirmTogglePage(JSON.parse(b.getAttribute('data-toggle'))); }); });
+  } catch(e){ tb.innerHTML = '<tr><td class="loading">'+esc(errMsg(e))+'</td></tr>'; }
+}
+function pageRow(w){
+  var link = WS_LINK_BASE + encodeURIComponent(w.slug);
+  var j = esc(JSON.stringify(w));
+  return '<tr><td><b>'+esc(w.label||w.slug)+'</b>'
+    + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
+    + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a></td>'
+    + '<td>'+(w.active?'<span class="tag-on">● Đang bật</span>':'<span class="tag-lock">● Đã tắt</span>')+'</td>'
+    + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+j+'\'>Sửa</button>'
+    + '<button class="btn ghost small'+(w.active?' terra':'')+'" data-toggle=\''+j+'\'>'+(w.active?'Tắt':'Bật')+'</button></td></tr>';
+}
+function confirmTogglePage(w){
+  var turnOn = !w.active;
+  openModal(
+    (turnOn?'Bật':'Tắt')+' trang feedback?',
+    '<p>Bạn có chắc muốn <b>'+(turnOn?'BẬT':'TẮT')+'</b> trang <b>'+esc(w.label||w.slug)+'</b> (<code>?sw='+esc(w.slug)+'</code>)?'
+      + (turnOn?'' : '<br><br>Khi tắt, phụ huynh mở link sẽ được <b>chuyển về trang chính</b>.')+'</p>',
+    async function(){
+      var res = await run('apiSetPageActive', TOKEN, w.slug, turnOn);
+      if(res && res.ok){ toast(turnOn?'Đã bật trang':'Đã tắt trang'); closeModal(); loadPages(); }
+      else toast((res&&res.message)||'Lỗi', true);
+    }, turnOn?'Bật':'Tắt');
+}
+function openPageModal(w){
+  w = w || {};
+  var body =
+    '<div class="field"><label>Mã trang (slug — giá trị ?sw=) *</label><input type="text" id="mSlug" value="'+esc(w.slug||'')+'"'+(w.slug?' readonly':'')+' placeholder="vd: ckry"></div>'
+    + '<div class="field"><label>Tên hiển thị</label><input type="text" id="mLabel" value="'+esc(w.label||'')+'" placeholder="vd: SOL Cookery"></div>'
+    + '<div class="field"><label>Mô tả ngắn (workshop gì)</label><input type="text" id="mNote" value="'+esc(w.note||'')+'" placeholder="tùy chọn"></div>';
+  openModal((w.slug?'Sửa':'Tạo')+' trang feedback', body, async function(){
+    var data = { slug:$('mSlug').value.trim(), label:$('mLabel').value.trim(), note:$('mNote').value.trim() };
+    if(!data.slug){ toast('Cần mã slug', true); return; }
+    var res = await run('apiSavePage', TOKEN, data);
+    if(res && res.ok){ toast('✓ Đã lưu trang'); closeModal(); loadPages(); } else toast((res&&res.message)||'Lỗi', true);
+  }, 'Lưu');
+}
+
+/* ---- Nhân viên ---- */
+async function loadStaffList(){
+  var tb = $('manageTable').querySelector('tbody');
   tb.innerHTML = '<tr><td class="loading">Đang tải…</td></tr>';
   try {
     var res = await run('apiListStaff', TOKEN);
     var list = (res && res.staff) || [];
-    if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có nhân viên.</td></tr>'; return; }
-    tb.innerHTML = '<tr><th>Tên</th><th>Role</th><th>Telegram</th><th>SĐT</th><th>Trạng thái</th><th></th></tr>'
-      + list.map(staffRow).join('');
-    tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editStaff(JSON.parse(b.getAttribute('data-edit'))); }); });
+    if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có nhân viên. Bấm “+ Tạo mới”.</td></tr>'; return; }
+    tb.innerHTML = '<tr><th>Nhân viên</th><th>Trạng thái</th><th></th></tr>' + list.map(staffRow).join('');
+    tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ openStaffModal(JSON.parse(b.getAttribute('data-edit'))); }); });
     tb.querySelectorAll('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){ toggleStaff(b.getAttribute('data-toggle'), b.getAttribute('data-active')==='1'); }); });
   } catch(e){ tb.innerHTML = '<tr><td class="loading">'+esc(errMsg(e))+'</td></tr>'; }
 }
 function staffRow(s){
-  var d = esc(JSON.stringify(s));
-  return '<tr><td><b>'+esc(s.name)+'</b>'+(s.note?'<br><span class="muted" style="font-size:12px">'+esc(s.note)+'</span>':'')+'</td>'
-    + '<td>'+esc(s.role)+'</td>'
-    + '<td>'+(s.telegram_user_id?esc(s.telegram_user_id):'<span class="muted">—</span>')+'</td>'
-    + '<td>'+(s.phone?esc(s.phone):'<span class="muted">—</span>')+'</td>'
+  var j = esc(JSON.stringify(s));
+  var role = '<span class="pill'+(s.role==='admin'?'':' src')+'">'+esc(s.role)+'</span>';
+  return '<tr><td><b>'+esc(s.name)+'</b> '+role
+    + (s.telegram_user_id?'<br><span class="muted" style="font-size:12px">TG: '+esc(s.telegram_user_id)+'</span>':'')
+    + (s.phone?' <span class="muted" style="font-size:12px">· '+esc(s.phone)+'</span>':'')
+    + (s.note?'<br><span class="muted" style="font-size:12px">'+esc(s.note)+'</span>':'')+'</td>'
     + '<td>'+(s.active?'<span class="tag-on">● Hoạt động</span>':'<span class="tag-lock">● Đã khóa</span>')+'</td>'
-    + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+d+'\'>Sửa</button>'
+    + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+j+'\'>Sửa</button>'
     + '<button class="btn ghost small" data-toggle="'+esc(s.passcode)+'" data-active="'+(s.active?'1':'0')+'">'+(s.active?'Khóa':'Mở')+'</button></td></tr>';
 }
-function editStaff(s){
-  $('sPass').value=s.passcode; $('sName').value=s.name; $('sRole').value=(s.role==='admin'?'admin':'staff');
-  $('sTgId').value=s.telegram_user_id||''; $('sPhone').value=s.phone||''; $('sNote').value=s.note||'';
-  window.scrollTo({top:0, behavior:'smooth'});
-  toast('Đã nạp "'+s.name+'" — sửa rồi bấm Lưu');
-}
-function clearStaffForm(){ ['sPass','sName','sTgId','sPhone','sNote'].forEach(function(id){ $(id).value=''; }); $('sRole').value='staff'; }
-async function saveStaff(){
-  var data = { passcode:$('sPass').value.trim(), name:$('sName').value.trim(), role:$('sRole').value,
-    telegram_user_id:$('sTgId').value.trim(), phone:$('sPhone').value.trim(), note:$('sNote').value.trim() };
-  if(!data.passcode || !data.name){ toast('Cần passcode + tên', true); return; }
-  $('sSave').disabled = true;
-  try { var res = await run('apiSaveStaff', TOKEN, data); if(res && res.ok){ toast('✓ Đã lưu nhân viên'); clearStaffForm(); loadStaff(); } else toast((res&&res.message)||'Lỗi', true); }
-  catch(e){ toast(errMsg(e), true); }
-  finally { $('sSave').disabled = false; }
+function openStaffModal(s){
+  s = s || {};
+  var body =
+    '<div class="field"><label>Passcode *</label><input type="text" id="mPass" value="'+esc(s.passcode||'')+'"'+(s.passcode?' readonly':'')+' placeholder="mã đăng nhập cá nhân"></div>'
+    + '<div class="field"><label>Tên *</label><input type="text" id="mName" value="'+esc(s.name||'')+'" placeholder="Họ tên"></div>'
+    + '<div class="field"><label>Vai trò</label><select id="mRole"><option value="staff">staff</option><option value="admin">admin</option></select></div>'
+    + '<div class="field"><label>telegram_user_id</label><input type="text" id="mTgId" inputmode="numeric" value="'+esc(s.telegram_user_id||'')+'" placeholder="vd 123456789 (tùy chọn)"></div>'
+    + '<div class="field"><label>SĐT</label><input type="tel" id="mPhone" value="'+esc(s.phone||'')+'" placeholder="tùy chọn"></div>'
+    + '<div class="field"><label>Ghi chú</label><input type="text" id="mNoteS" value="'+esc(s.note||'')+'" placeholder="tùy chọn"></div>';
+  openModal((s.passcode?'Sửa':'Tạo')+' nhân viên', body, async function(){
+    var data = { passcode:$('mPass').value.trim(), name:$('mName').value.trim(), role:$('mRole').value,
+      telegram_user_id:$('mTgId').value.trim(), phone:$('mPhone').value.trim(), note:$('mNoteS').value.trim() };
+    if(!data.passcode || !data.name){ toast('Cần passcode + tên', true); return; }
+    var res = await run('apiSaveStaff', TOKEN, data);
+    if(res && res.ok){ toast('✓ Đã lưu nhân viên'); closeModal(); loadStaffList(); } else toast((res&&res.message)||'Lỗi', true);
+  }, 'Lưu');
+  if(s.role) $('mRole').value = (s.role==='admin'?'admin':'staff');
 }
 async function toggleStaff(passcode, active){
-  try { var res = await run('apiSetStaffActive', TOKEN, passcode, !active); if(res && res.ok){ toast(active?'Đã khóa':'Đã mở khóa'); loadStaff(); } else toast((res&&res.message)||'Lỗi', true); }
+  try { var res = await run('apiSetStaffActive', TOKEN, passcode, !active); if(res && res.ok){ toast(active?'Đã khóa':'Đã mở khóa'); loadStaffList(); } else toast((res&&res.message)||'Lỗi', true); }
   catch(e){ toast(errMsg(e), true); }
 }
 
-/* ---- TAB TRANG FEEDBACK (workshops) ---- */
-async function loadWorkshops(){
-  var tb = $('wsTable').querySelector('tbody');
-  tb.innerHTML = '<tr><td class="loading">Đang tải…</td></tr>';
-  try {
-    var res = await run('apiListWorkshops', TOKEN);
-    var list = (res && res.workshops) || [];
-    if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có trang nào. Thêm ở form trên (vd: cookery).</td></tr>'; return; }
-    tb.innerHTML = '<tr><th>Trang / đường dẫn</th><th>Trạng thái</th><th></th></tr>' + list.map(wsRow).join('');
-    tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editWorkshop(JSON.parse(b.getAttribute('data-edit'))); }); });
-    tb.querySelectorAll('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){ toggleWorkshop(b.getAttribute('data-toggle'), b.getAttribute('data-active')==='1'); }); });
-  } catch(e){ tb.innerHTML = '<tr><td class="loading">'+esc(errMsg(e))+'</td></tr>'; }
+/* ---- MODAL ---- */
+var modalOnOk = null;
+function openModal(title, bodyHtml, onOk, okLabel){
+  $('modalTitle').textContent = title;
+  $('modalBody').innerHTML = bodyHtml;
+  $('modalOk').textContent = okLabel || 'Xác nhận';
+  modalOnOk = onOk;
+  $('modal').classList.remove('hidden');
 }
-function wsRow(w){
-  var d = esc(JSON.stringify(w));
-  var link = WS_LINK_BASE + encodeURIComponent(w.ws_id);
-  return '<tr><td><b>'+esc(w.label||w.ws_id)+'</b>'
-    + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
-    + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a></td>'
-    + '<td>'+(w.active?'<span class="tag-on">● Đang mở</span>':'<span class="tag-lock">● Đã đóng</span>')+'</td>'
-    + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+d+'\'>Sửa</button>'
-    + '<button class="btn ghost small'+(w.active?' terra':'')+'" data-toggle="'+esc(w.ws_id)+'" data-active="'+(w.active?'1':'0')+'">'+(w.active?'Đóng':'Mở')+'</button></td></tr>';
-}
-function editWorkshop(w){ $('wId').value=w.ws_id; $('wLabel').value=w.label||''; $('wNote').value=w.note||''; window.scrollTo({top:0,behavior:'smooth'}); toast('Đã nạp "'+(w.label||w.ws_id)+'"'); }
-function clearWsForm(){ ['wId','wLabel','wNote'].forEach(function(id){ $(id).value=''; }); }
-async function saveWorkshop(){
-  var data = { ws_id:$('wId').value.trim(), label:$('wLabel').value.trim(), note:$('wNote').value.trim() };
-  if(!data.ws_id){ toast('Cần mã ws_id', true); return; }
-  $('wSave').disabled = true;
-  try { var res = await run('apiSaveWorkshop', TOKEN, data); if(res && res.ok){ toast('✓ Đã lưu trang'); clearWsForm(); loadWorkshops(); } else toast((res&&res.message)||'Lỗi', true); }
-  catch(e){ toast(errMsg(e), true); }
-  finally { $('wSave').disabled = false; }
-}
-async function toggleWorkshop(wsId, active){
-  try { var res = await run('apiSetWorkshopActive', TOKEN, wsId, !active); if(res && res.ok){ toast(active?'Đã đóng trang':'Đã mở trang'); loadWorkshops(); } else toast((res&&res.message)||'Lỗi', true); }
-  catch(e){ toast(errMsg(e), true); }
-}
+function closeModal(){ $('modal').classList.add('hidden'); modalOnOk = null; }
 
 /* ============ WIRE EVENTS ============ */
 $('loginBtn').addEventListener('click', doLogin);
@@ -477,10 +511,12 @@ $('logoutBtn').addEventListener('click', doLogout);
 $('fReload').addEventListener('click', loadFeedback);
 $('fQ').addEventListener('keydown', function(e){ if(e.key==='Enter') loadFeedback(); });
 $('fRating').addEventListener('change', loadFeedback);
-$('sSave').addEventListener('click', saveStaff);
-$('sClear').addEventListener('click', clearStaffForm);
-$('wSave').addEventListener('click', saveWorkshop);
-$('wClear').addEventListener('click', clearWsForm);
+document.querySelectorAll('.subtab').forEach(function(b){ b.addEventListener('click', function(){ manageSub = b.getAttribute('data-sub'); loadManage(); }); });
+$('btnCreate').addEventListener('click', function(){ if(manageSub==='pages') openPageModal(null); else openStaffModal(null); });
+$('modalX').addEventListener('click', closeModal);
+$('modalCancel').addEventListener('click', closeModal);
+$('modal').addEventListener('click', function(e){ if(e.target === $('modal')) closeModal(); });
+$('modalOk').addEventListener('click', async function(){ if(!modalOnOk) return; $('modalOk').disabled=true; try{ await modalOnOk(); } catch(e){ toast(errMsg(e), true); } finally { $('modalOk').disabled=false; } });
 document.querySelectorAll('.tab').forEach(function(t){ t.addEventListener('click', function(){ switchTab(t.getAttribute('data-tab')); }); });
 
 /* ============ BOOT: có token cũ → whoami, hết hạn → login ============ */

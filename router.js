@@ -13,8 +13,9 @@
  */
 
 var WORKSHOP_REGISTRY = {
-  ckry: 'cookery.html'
-  // sci: 'science.html',   // ← ví dụ: mở comment khi có workshop Science
+  ckry: 'cookery.html',
+  test: 'test.html'          // trang test bật/tắt (chữ "test" giữa màn hình)
+  // sci: 'science.html',    // ← ví dụ: mở comment khi có workshop Science
 };
 
 /**

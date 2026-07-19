@@ -19,7 +19,8 @@
 var FEEDBACK_CONFIG = {
   // [CẦN VERIFY] Dán URL Web app Apps Script (deploy xong) vào đây:
   ENDPOINT: 'https://script.google.com/macros/s/AKfycbx-aa-L6R0Deyl10dYOhzTSP099OnxZdt814tcTiqfv748sMKna-GQSIBKmXlrY43OQ/exec',
-  ADVANCE_MS: 420 // độ trễ auto-advance sau khi chọn (đủ thấy hiệu ứng chọn)
+  ADVANCE_MS: 1500, // độ trễ auto-advance sau khi chọn (1.5 giây)
+  REDIRECT_WHEN_OFF: 'https://fbk.solenglishland.vn/' // trang feedback bị TẮT → redirect về đây
 };
 
 /* =======================  PURE FUNCTIONS (test được)  ======================= */
@@ -431,20 +432,19 @@ if (typeof document !== 'undefined') {
       if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
     }
 
-    // Đóng/mở workshop: hỏi backend (best-effort, fail-open). Đóng → hiện thông báo, không cho vào wizard.
-    function checkWorkshopStatus() {
+    // Bật/tắt trang feedback: hỏi backend (best-effort, fail-open). TẮT → REDIRECT sang trang chính.
+    function checkPageStatus() {
       var endpoint = FEEDBACK_CONFIG.ENDPOINT;
       if (!endpoint || endpoint.indexOf('{{') !== -1) return;          // chưa cấu hình ENDPOINT
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
       if (!wsId) return;
-      var app = $('[data-fb-app]') || document.body;
       var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
-      fetch(endpoint + sep + 'action=wsstatus&ws=' + encodeURIComponent(wsId))
+      fetch(endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(wsId))
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (d && d.ok && d.active === false) {
-            if (introTimer) { clearTimeout(introTimer); introTimer = null; }
-            app.classList.add('is-intro', 'is-closed');
+            var to = (d.redirect || FEEDBACK_CONFIG.REDIRECT_WHEN_OFF);
+            if (typeof location !== 'undefined' && to) location.replace(to);
           }
         })
         .catch(function () { /* fail-open: lỗi mạng / backend chưa cập nhật → trang vẫn dùng bình thường */ });
@@ -461,7 +461,7 @@ if (typeof document !== 'undefined') {
       var steps = $all('[data-fb-step]');
       if (steps.length > 0) initWizard(steps);
       else initClassic();
-      checkWorkshopStatus();
+      checkPageStatus();
     }
 
     if (document.readyState === 'loading') {
