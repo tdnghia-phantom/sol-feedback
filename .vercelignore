@@ -1,0 +1,9 @@
+# Loại các file KHÔNG thuộc bản deploy static (tài liệu / test / backend / dev).
+# Phạm vi deploy static chỉ gồm: index.html, router.js, cookery.html, feedback-submit.js (+ assets/ tùy chọn).
+docs/
+tests/
+apps-script/
+preview-cookery.html
+deploy-runbook-feedback.md
+*.md
+.git/
