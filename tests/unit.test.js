@@ -15,19 +15,19 @@ function eq(id, actual, expected) {
 var REG = { cookery: 'cookery.html', science: 'science.html' };
 
 /* ---------- FR-01: Router resolve (UT-R) ---------- */
-eq('UT-R1 ws hợp lệ đơn', router.resolveWorkshop('?ws=cookery', REG), 'cookery.html');
-eq('UT-R2 giữ utm, bỏ ws', router.resolveWorkshop('?utm_source=qr&ws=cookery&x=1', REG), 'cookery.html?utm_source=qr&x=1');
-eq('UT-R3 ws hoa + space', router.resolveWorkshop('?ws=%20COOKERY%20', REG), 'cookery.html');
-eq('UT-R4 ws thứ hai trong registry', router.resolveWorkshop('?ws=science', REG), 'science.html');
+eq('UT-R1 ws hợp lệ đơn', router.resolveWorkshop('?sw=cookery', REG), 'cookery.html');
+eq('UT-R2 giữ utm, bỏ ws', router.resolveWorkshop('?utm_source=qr&sw=cookery&x=1', REG), 'cookery.html?utm_source=qr&x=1');
+eq('UT-R3 ws hoa + space', router.resolveWorkshop('?sw=%20COOKERY%20', REG), 'cookery.html');
+eq('UT-R4 ws thứ hai trong registry', router.resolveWorkshop('?sw=science', REG), 'science.html');
 
 /* ---------- FR-02: Fallback + chống open-redirect (UT-R tiếp) ---------- */
-eq('UT-R5 ws lạ → null', router.resolveWorkshop('?ws=lung-tung', REG), null);
+eq('UT-R5 ws lạ → null', router.resolveWorkshop('?sw=lung-tung', REG), null);
 eq('UT-R6 không có ws → null', router.resolveWorkshop('?utm_source=qr', REG), null);
 eq('UT-R7 query rỗng → null', router.resolveWorkshop('', REG), null);
-eq('UT-R8 ws rỗng → null', router.resolveWorkshop('?ws=', REG), null);
-eq('UT-R9 path traversal → null', router.resolveWorkshop('?ws=../evil', REG), null);
-eq('UT-R10 URL ngoài → null', router.resolveWorkshop('?ws=https://evil.com', REG), null);
-eq('UT-R11 không dính prototype chain', router.resolveWorkshop('?ws=toString', REG), null);
+eq('UT-R8 ws rỗng → null', router.resolveWorkshop('?sw=', REG), null);
+eq('UT-R9 path traversal → null', router.resolveWorkshop('?sw=../evil', REG), null);
+eq('UT-R10 URL ngoài → null', router.resolveWorkshop('?sw=https://evil.com', REG), null);
+eq('UT-R11 không dính prototype chain', router.resolveWorkshop('?sw=toString', REG), null);
 
 /* ---------- FR-03: Validate (UT-V) — bảng Gherkin SĐT ---------- */
 function v(o) { return fb.fbValidate(o); }

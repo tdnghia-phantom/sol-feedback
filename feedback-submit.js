@@ -236,15 +236,7 @@ if (typeof document !== 'undefined') {
 
     function showThanks() {
       if (introTimer) { clearTimeout(introTimer); introTimer = null; }
-      var app = $('[data-fb-app]');
-      var intro = $('[data-fb-intro]');
-      // CHG: gửi xong → hiện lại THẺ ĐẦU TIÊN, nhưng KHÔNG còn nút "Gửi cảm nhận" (class is-submitted)
-      if (app && intro) {
-        app.classList.add('is-intro', 'is-submitted');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
-      }
-      // Fallback (classic / trang không có thẻ mở đầu): giữ nguyên màn cảm ơn cũ
+      // Gửi xong → hiện MÀN CẢM ƠN (confetti + polaroid + nút nhóm Zalo)
       var form = $('[data-fb-form]');
       var thanks = $('[data-fb-thanks]');
       var topbar = $('[data-fb-topbar]');

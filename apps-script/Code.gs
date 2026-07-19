@@ -80,13 +80,11 @@ function doPost(e) {
       lock.releaseLock();
     }
 
-    // --- Cảnh báo điểm thấp (SAU khi ghi; lỗi bị nuốt — FR-07) ---
-    if (rating !== null && rating <= LOW_RATING_THRESHOLD) {
-      try {
-        sendLowRatingAlert_(rating, data, createdAt);
-      } catch (alertErr) {
-        // nuốt lỗi — ghi Sheet đã thành công là đủ
-      }
+    // --- Thông báo Telegram cho MỌI cảm nhận mới (SAU khi ghi; lỗi bị nuốt) ---
+    try {
+      sendFeedbackAlert_(rating, data, createdAt);
+    } catch (alertErr) {
+      // nuốt lỗi — ghi Sheet đã thành công là đủ (FR-07)
     }
 
     return jsonOut_({ ok: true, submission_id: submissionId });
@@ -163,6 +161,37 @@ function setupFeedbackSheet() {
 }
 
 /* ============================== TELEGRAM ============================== */
+
+// Gửi Telegram cho MỌI cảm nhận mới (rating ≤ 2 → nhấn mạnh cảnh báo).
+function sendFeedbackAlert_(rating, data, createdAt) {
+  var props = PropertiesService.getScriptProperties();
+  var token = props.getProperty('TELEGRAM_BOT_TOKEN');
+  var chatId = props.getProperty('TELEGRAM_CHAT_ID');
+  if (!token || !chatId) return; // chưa cấu hình → bỏ qua êm
+
+  var contact = [safeStr_(data.parent_name, 120), safeStr_(data.phone, 20)]
+    .filter(function (x) { return x; }).join(' · ');
+  var liked = '';
+  try { var a = data.answers || {}; if (a.liked && a.liked.length) liked = a.liked.join(', '); } catch (e) {}
+  var low = (rating !== null && rating <= LOW_RATING_THRESHOLD);
+  var stars = rating ? new Array(rating + 1).join('★') : '—';
+  var head = low ? ('⚠️ FEEDBACK THẤP (' + rating + '★)') : ('💬 CẢM NHẬN MỚI (' + stars + ')');
+
+  var msg =
+    head + ' · Workshop: ' + (safeStr_(data.ws_id, 40) || 'unknown') + '\n' +
+    'Bé thích: ' + (safeStr_(data.child_enjoy, 60) || '—') + '\n' +
+    (liked ? ('Ưng ý: ' + liked + '\n') : '') +
+    'Góp ý: "' + (safeStr_(data.comment, 500) || '—') + '"\n' +
+    'Liên hệ: ' + (contact || '(không để lại)') + '\n' +
+    'Lúc: ' + formatVN_(createdAt);
+
+  UrlFetchApp.fetch('https://api.telegram.org/bot' + token + '/sendMessage', {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({ chat_id: chatId, text: msg, disable_web_page_preview: true }),
+    muteHttpExceptions: true
+  });
+}
 
 function sendLowRatingAlert_(rating, data, createdAt) {
   var props = PropertiesService.getScriptProperties();
@@ -639,9 +668,9 @@ function setupWorkshopsSheet() {
   sh.getRange(1, 1, 1, WORKSHOP_COLUMNS.length).setValues([WORKSHOP_COLUMNS]).setFontWeight('bold');
   sh.setFrozenRows(1);
   if (sh.getLastRow() < 2) {
-    sh.appendRow(['cookery', 'SOL Cookery', 'TRUE', 'Workshop nấu ăn']);
-    Logger.log('✅ workshops sẵn sàng (đã nạp cookery = MỞ).');
-    try { SpreadsheetApp.getUi().alert('Đã tạo sheet "' + WORKSHOP_SHEET + '" + nạp dòng cookery (đang MỞ).'); } catch (e) {}
+    sh.appendRow(['ckry', 'SOL Cookery', 'TRUE', 'Workshop nấu ăn cho bé — SOL Cookery']);
+    Logger.log('✅ workshops sẵn sàng (đã nạp ckry = MỞ).');
+    try { SpreadsheetApp.getUi().alert('Đã tạo sheet "' + WORKSHOP_SHEET + '" + nạp dòng ckry (SOL Cookery, đang MỞ).'); } catch (e) {}
   } else {
     Logger.log('workshops đã có — chỉ làm mới header, giữ nguyên dữ liệu.');
   }

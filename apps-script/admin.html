@@ -108,6 +108,7 @@
   .row-actions{display:flex; gap:6px; flex-wrap:wrap}
   .tag-lock{font-size:11px; font-weight:800; color:var(--bad)}
   .tag-on{font-size:11px; font-weight:800; color:var(--ok)}
+  .ws-link{display:inline-block; margin-top:3px; font-size:11.5px; color:var(--blue); overflow-wrap:anywhere}
 
   /* ---------- TOAST ---------- */
   #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--olive-deep); color:#fff;
@@ -240,6 +241,7 @@ function run(fn){
 }
 var TOKEN = sessionStorage.getItem('sol_fb_token') || '';
 var ME = { name:'', role:'' };
+var WS_LINK_BASE = 'https://feedback.sol.vn/?sw='; // đường dẫn công khai của trang feedback
 var $ = function(id){ return document.getElementById(id); };
 function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); setTimeout(function(){ t.className=''; }, 2600); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
@@ -438,15 +440,17 @@ async function loadWorkshops(){
     var res = await run('apiListWorkshops', TOKEN);
     var list = (res && res.workshops) || [];
     if(!list.length){ tb.innerHTML='<tr><td class="muted" style="padding:12px">Chưa có trang nào. Thêm ở form trên (vd: cookery).</td></tr>'; return; }
-    tb.innerHTML = '<tr><th>Trang</th><th>ws_id</th><th>Trạng thái</th><th></th></tr>' + list.map(wsRow).join('');
+    tb.innerHTML = '<tr><th>Trang / đường dẫn</th><th>Trạng thái</th><th></th></tr>' + list.map(wsRow).join('');
     tb.querySelectorAll('[data-edit]').forEach(function(b){ b.addEventListener('click', function(){ editWorkshop(JSON.parse(b.getAttribute('data-edit'))); }); });
     tb.querySelectorAll('[data-toggle]').forEach(function(b){ b.addEventListener('click', function(){ toggleWorkshop(b.getAttribute('data-toggle'), b.getAttribute('data-active')==='1'); }); });
   } catch(e){ tb.innerHTML = '<tr><td class="loading">'+esc(errMsg(e))+'</td></tr>'; }
 }
 function wsRow(w){
   var d = esc(JSON.stringify(w));
-  return '<tr><td><b>'+esc(w.label||w.ws_id)+'</b>'+(w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')+'</td>'
-    + '<td><code>'+esc(w.ws_id)+'</code></td>'
+  var link = WS_LINK_BASE + encodeURIComponent(w.ws_id);
+  return '<tr><td><b>'+esc(w.label||w.ws_id)+'</b>'
+    + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
+    + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a></td>'
     + '<td>'+(w.active?'<span class="tag-on">● Đang mở</span>':'<span class="tag-lock">● Đã đóng</span>')+'</td>'
     + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+d+'\'>Sửa</button>'
     + '<button class="btn ghost small'+(w.active?' terra':'')+'" data-toggle="'+esc(w.ws_id)+'" data-active="'+(w.active?'1':'0')+'">'+(w.active?'Đóng':'Mở')+'</button></td></tr>';
