@@ -18,7 +18,7 @@
 
 var FEEDBACK_CONFIG = {
   // [CẦN VERIFY] Dán URL Web app Apps Script (deploy xong) vào đây:
-  ENDPOINT: '{{APPS_SCRIPT_FEEDBACK_URL}}',
+  ENDPOINT: 'https://script.google.com/macros/s/AKfycbx-aa-L6R0Deyl10dYOhzTSP099OnxZdt814tcTiqfv748sMKna-GQSIBKmXlrY43OQ/exec',
   ADVANCE_MS: 420 // độ trễ auto-advance sau khi chọn (đủ thấy hiệu ứng chọn)
 };
 
