@@ -20,7 +20,15 @@
    Chọn tiếp hàm **`setupFeedbackPageList`** → Run → tạo tab **`feedback-page-list`** (6 cột:
    `slug·label·active·note·open_at·close_at`) + nạp sẵn 2 dòng: `ckry` (SOL Cookery) và `test` (trang test) — đều BẬT.
    Chọn tiếp hàm **`installAutoToggleTrigger`** → Run → cài lịch tự bật/tắt (kiểm tra **mỗi 1 tiếng**).
-   → **Đặt Time zone project = `Asia/Ho_Chi_Minh`** (Project Settings) để giờ hẹn `open_at/close_at` đúng giờ VN.
+
+   > ⏰ **Về múi giờ — có HAI cài đặt KHÁC NHAU, đừng nhầm:**
+   > 1. **Múi giờ của Apps Script** (Project Settings → Time zone)
+   > 2. **Múi giờ của chính Google Sheet** (File → Settings → Timezone) ← *thường bị bỏ quên, mặc định có thể là giờ Mỹ*
+   >
+   > Nên đặt **cả hai** = `(GMT+07:00) Asia/Ho_Chi_Minh` cho thống nhất khi bạn xem/lọc dữ liệu bằng tay.
+   > Tuy vậy **code KHÔNG còn phụ thuộc vào hai cài đặt này**: mọi mốc thời gian được tính bằng số học
+   > cố định UTC+07:00 (VN không có DST) và lưu ở dạng ISO `2026-07-20T09:00:00+07:00` trong ô **định dạng
+   > Văn bản** — nên dù cài sai múi giờ, giờ hẹn bật/tắt và `created_at` vẫn đúng.
 4. `Deploy → New deployment → Web app`:
    - Execute as: **Me** · Who has access: **Anyone**
    - Bấm Deploy → **copy URL** dạng `https://script.google.com/macros/s/…/exec`.

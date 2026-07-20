@@ -463,8 +463,9 @@ function initDatePickers(){
     if(typeof flatpickr !== 'undefined'){
       flatpickr(el, { enableTime:true, time_24hr:true, dateFormat:'Y-m-d H:i', altInput:true, altFormat:'d-m-y H:i', allowInput:false, clickOpens:true, disableMobile:true });
     } else {
+      var v = el.value;                      // GIỮ giá trị TRƯỚC khi đổi type (đổi type sẽ xoá value)
       el.type = 'datetime-local'; el.removeAttribute('readonly');
-      if(el.value) el.value = el.value.replace(' ', 'T');
+      el.value = v ? v.replace(' ', 'T') : '';
     }
   });
 }

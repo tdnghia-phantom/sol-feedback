@@ -52,7 +52,7 @@ function doPost(e) {
     }
 
     var rating = clampRating_(data.rating);
-    var createdAt = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00';
+    var createdAt = isoFromMs_(Date.now()); // ISO giờ VN, không phụ thuộc múi giờ project/Sheet
 
     // --- Ghi Sheet (lock chống ghi chồng + sinh submission_id 5 ký tự KHÔNG trùng trong cùng lock) ---
     var lock = LockService.getScriptLock();
@@ -99,7 +99,7 @@ function doPost(e) {
 function doGet(e) {
   var p = (e && e.parameter) || {};
   if (p.action === 'health') {
-    return jsonOut_({ ok: true, service: 'sol-feedback', time: Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd HH:mm:ss') });
+    return jsonOut_({ ok: true, service: 'sol-feedback', time: isoFromMs_(Date.now()) });
   }
   // Trạng thái đóng/mở của 1 trang feedback (public) — trang cookery.html gọi lúc tải.
   if (p.action === 'pagestatus') {
@@ -121,6 +121,8 @@ function doGet(e) {
  */
 function setupFeedbackSheet() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  // Múi giờ CỦA SHEET (khác múi giờ project Apps Script) — đặt luôn cho khớp, tránh lệch khi xem tay.
+  try { if (ss.getSpreadsheetTimeZone() !== TZ) ss.setSpreadsheetTimeZone(TZ); } catch (e) {}
 
   // ---- Sheet feedback ----
   var sh = ss.getSheetByName(SHEET_NAME);
@@ -128,6 +130,7 @@ function setupFeedbackSheet() {
   sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
   sh.setFrozenRows(1);
   sh.getRange('I:I').setNumberFormat('@');       // phone = text → giữ số 0 đầu
+  sh.getRange('B:B').setNumberFormat('@');       // created_at = TEXT → Sheets KHÔNG tự đổi thành Date
   sh.getRange('D:D').setNumberFormat('0');       // rating = number
   sh.setColumnWidth(7, 320);                     // comment rộng dễ đọc
   sh.setColumnWidth(11, 260);                    // answers_json
@@ -222,7 +225,7 @@ function testTelegramAlert() {
     comment: '(tin nhắn test từ testTelegramAlert — bỏ qua)',
     parent_name: 'Test',
     phone: '0900000000'
-  }, Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00');
+  }, isoFromMs_(Date.now()));
   Logger.log('Đã bắn tin test — kiểm tra Telegram.');
 }
 
@@ -236,6 +239,7 @@ function getFeedbackSheet_() {
     sh.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]).setFontWeight('bold');
     sh.setFrozenRows(1);
     sh.getRange('I:I').setNumberFormat('@');
+    sh.getRange('B:B').setNumberFormat('@'); // created_at giữ nguyên chuỗi ISO
   }
   return sh;
 }
@@ -394,7 +398,7 @@ function apiListFeedback(token, filter) {
     try { var a = JSON.parse(o.answers_json || '{}'); if (a && Array.isArray(a.liked)) liked = a.liked; } catch (e) {}
     out.push({
       submission_id: String(o.submission_id || ''),
-      created_at: String(o.created_at || ''),
+      created_at: toIsoVN_(o.created_at), // chuẩn hoá ISO dù ô là chuỗi hay đã bị ép thành Date
       ws_id: String(o.ws_id || ''),
       rating: rating,
       child_enjoy: String(o.child_enjoy || ''),
@@ -428,7 +432,7 @@ function apiDashboard(token) {
   requireAdmin_(token); // staff gọi vào là THROW — khóa bằng dữ liệu
   var sh = getFeedbackSheet_();
   var last = sh.getLastRow();
-  var today = Utilities.formatDate(new Date(), TZ, 'yyyy-MM-dd');
+  var today = isoFromMs_(Date.now()).slice(0, 10);
   var res = {
     ok: true, total: 0, todayCount: 0, avg: 0,
     dist: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 },
@@ -445,7 +449,7 @@ function apiDashboard(token) {
     var rating = Number(o.rating) || 0;
     var ws = String(o.ws_id || 'unknown');
     var src = String(o.utm_source || '') || 'direct';
-    var created = String(o.created_at || '');
+    var created = toIsoVN_(o.created_at); // chuẩn hoá → so sánh 'hôm nay' luôn đúng
     if (created.slice(0, 10) === today) res.todayCount++;
     if (rating >= 1 && rating <= 5) { res.dist[rating]++; sumRating += rating; ratedCount++; }
     if (!res.byWorkshop[ws]) res.byWorkshop[ws] = { count: 0, sum: 0, avg: 0 };
@@ -530,6 +534,7 @@ function getStaffSheet_() {
   var sh = ss.getSheetByName(STAFF_SHEET);
   if (!sh) { sh = ss.insertSheet(STAFF_SHEET); sh.appendRow(STAFF_COLUMNS); sh.setFrozenRows(1); }
   if (sh.getLastRow() === 0) sh.appendRow(STAFF_COLUMNS);
+  forceStaffTextCols_(sh); // LUÔN ép — sheet có sẵn cũng được bảo vệ
   return sh;
 }
 function headerIndex_(sheet) {
@@ -570,9 +575,10 @@ function upsertRow_(sheet, keyCol, keyVal, valuesObj) {
 function clean_(v) { return (v === undefined || v === null) ? '' : String(v).trim(); }
 // Ép cột passcode + telegram_user_id sang định dạng Văn bản (id Telegram lớn không bị đổi sang khoa học).
 function forceStaffTextCols_(sh) {
+  var idx = headerIndex_(sh);
   ['passcode', 'telegram_user_id'].forEach(function (c) {
-    var i = STAFF_COLUMNS.indexOf(c);
-    if (i > -1) sh.getRange(2, i + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
+    if (idx[c] === undefined) return;
+    sh.getRange(2, idx[c] + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
   });
 }
 // Telegram tiện ích cho biến động nhân viên (best-effort — không phá thao tác nếu lỗi).
@@ -625,15 +631,18 @@ var REDIRECT_WHEN_OFF = 'https://fbk.solenglishland.vn/';
 function getPageListSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(PAGE_SHEET);
-  if (!sh) { sh = ss.insertSheet(PAGE_SHEET); sh.appendRow(PAGE_COLUMNS); sh.setFrozenRows(1); forcePageTextCols_(sh); }
+  if (!sh) { sh = ss.insertSheet(PAGE_SHEET); sh.appendRow(PAGE_COLUMNS); sh.setFrozenRows(1); }
   if (sh.getLastRow() === 0) sh.appendRow(PAGE_COLUMNS);
+  forcePageTextCols_(sh); // LUÔN ép (sheet tạo sẵn/tay trước đây cũng được ép), rẻ và idempotent
   return sh;
 }
-// open_at/close_at để định dạng Văn bản → giữ nguyên chuỗi 'yyyy-MM-dd HH:mm', không bị Sheet đổi kiểu.
+// open_at/close_at để định dạng Văn bản → giữ nguyên chuỗi ISO, không bị Sheet đổi thành Date.
+// Lấy cột theo HEADER THẬT (không dùng index cứng) để không format nhầm cột.
 function forcePageTextCols_(sh) {
+  var idx = headerIndex_(sh);
   ['open_at', 'close_at'].forEach(function (c) {
-    var i = PAGE_COLUMNS.indexOf(c);
-    if (i > -1) sh.getRange(2, i + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
+    if (idx[c] === undefined) return;
+    sh.getRange(2, idx[c] + 1, Math.max(1, sh.getMaxRows() - 1), 1).setNumberFormat('@');
   });
 }
 
@@ -683,19 +692,28 @@ function apiSavePage(token, data) {
   var slug = clean_(data.slug).toLowerCase();
   if (!slug) return { ok: false, message: 'Cần mã trang (slug — giá trị ?sw=).' };
   var sh = getPageListSheet_();
-  var existed = !!findRow_(sh, 'slug', slug);
+  var found = findRow_(sh, 'slug', slug);
+  var existed = !!found;
   // LƯU DẠNG ISO CHUẨN (yyyy-MM-ddTHH:mm:ss+07:00) — giống created_at. Input picker là giờ VN local.
   var openIso = toIsoVN_(data.open_at);
   var closeIso = toIsoVN_(data.close_at);
-  // VALIDATE cột active theo LỊCH tại thời điểm lưu: có lịch → tự tính BẬT/TẮT theo giờ hiện tại.
+  // Nhập giờ mà không parse được → báo lỗi thay vì âm thầm bỏ qua
+  if (clean_(data.open_at) && !openIso) return { ok: false, message: 'Giờ bắt đầu không hợp lệ.' };
+  if (clean_(data.close_at) && !closeIso) return { ok: false, message: 'Giờ kết thúc không hợp lệ.' };
+  if (openIso && closeIso && new Date(closeIso).getTime() <= new Date(openIso).getTime()) {
+    return { ok: false, message: 'Giờ kết thúc phải sau giờ bắt đầu.' };
+  }
+  // Cột active: CÓ lịch → tính theo lịch + giờ hiện tại. KHÔNG lịch → GIỮ NGUYÊN trạng thái cũ
+  // (client không gửi `active` khi chỉ sửa tên/mô tả — không được tự bật lại trang đang tắt).
+  var prevActive = found ? (String(found.obj.active).toUpperCase() === 'TRUE') : true;
   var active;
   if (openIso || closeIso) active = computeActiveFromSchedule_(openIso, closeIso) ? 'TRUE' : 'FALSE';
-  else active = data.active === false ? 'FALSE' : 'TRUE';
+  else active = (data.active === undefined ? prevActive : (data.active !== false)) ? 'TRUE' : 'FALSE';
+  forcePageTextCols_(sh); // PHẢI ép TEXT TRƯỚC khi ghi — nếu không Sheets tự đổi chuỗi ISO thành Date
   upsertRow_(sh, 'slug', slug, {
     slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
     open_at: openIso, close_at: closeIso
   });
-  forcePageTextCols_(sh);
   if (!existed) {
     staffTelegram_('🆕 TẠO TRANG FEEDBACK: ' + (clean_(data.label) || slug) + ' (?sw=' + slug + ')\n— ' + sess.name);
   }
@@ -723,68 +741,90 @@ function apiSetPageActive(token, slug, active) {
   return { ok: true };
 }
 
-/* ---------- LỊCH TỰ ĐỘNG BẬT/TẮT (time-trigger) ---------- */
-// Giờ VN local 'yyyy-MM-dd HH:mm' (từ picker) → ISO chuẩn 'yyyy-MM-ddTHH:mm:ss+07:00'. Trống → ''.
-function toIsoVN_(v) {
-  var s = String(v == null ? '' : v).trim().replace('T', ' ');
-  if (!s) return '';
-  var m = s.match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
-  if (!m) { var ms0 = parseWhen_(v); return ms0 ? Utilities.formatDate(new Date(ms0), TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00' : ''; }
-  try {
-    var d = Utilities.parseDate(m[1] + ' ' + m[2], TZ, 'yyyy-MM-dd HH:mm');
-    return Utilities.formatDate(d, TZ, "yyyy-MM-dd'T'HH:mm:ss") + '+07:00';
-  } catch (e) { return ''; }
-}
-// Giá trị ô giờ (đã lưu ISO) → 'yyyy-MM-dd HH:mm' giờ VN (cho picker phía admin đọc lại).
-function toDatetimeLocal_(v) {
-  if (v instanceof Date) return Utilities.formatDate(v, TZ, 'yyyy-MM-dd HH:mm');
-  var ms = parseWhen_(v);
-  return ms ? Utilities.formatDate(new Date(ms), TZ, 'yyyy-MM-dd HH:mm') : '';
-}
-// Chuỗi giờ → ms. Hỗ trợ ISO có offset/Z (parse tuyệt đối) và 'yyyy-MM-dd HH:mm' (giờ VN). Trống/sai → 0.
-function parseWhen_(v) {
-  if (v instanceof Date) return v.getTime();
-  var s = String(v == null ? '' : v).trim();
-  if (!s) return 0;
-  // ISO có offset (+07:00 / Z) → parse tuyệt đối, không lệ thuộc TZ runtime
-  if (/[T ]\d{2}:\d{2}/.test(s) && /([+-]\d{2}:?\d{2}|Z)$/.test(s)) {
-    var t = new Date(s).getTime(); if (!isNaN(t)) return t;
-  }
-  // 'yyyy-MM-dd HH:mm' hoặc 'yyyy-MM-ddTHH:mm' (giờ VN, không offset) → theo TZ
-  var m = s.replace('T', ' ').match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})/);
-  if (m) { try { return Utilities.parseDate(m[1], TZ, 'yyyy-MM-dd HH:mm').getTime(); } catch (e) {} }
-  var t2 = new Date(s).getTime(); return isNaN(t2) ? 0 : t2;
-}
-function fmtWhen_(ms) { return Utilities.formatDate(new Date(ms), TZ, 'HH:mm dd-MM-yyyy'); }
+/* ==================================================================================
+ * THỜI GIAN — TUYỆT ĐỐI KHÔNG PHỤ THUỘC MÚI GIỜ
+ * ----------------------------------------------------------------------------------
+ * VN cố định UTC+07:00, KHÔNG có DST. Nên mọi chuyển đổi ở đây làm bằng SỐ HỌC/CHUỖI
+ * thuần, KHÔNG dùng Utilities.parseDate/formatDate → miễn nhiễm với cả:
+ *   · Múi giờ của project Apps Script (appsscript.json / Project Settings), VÀ
+ *   · Múi giờ của chính Google Sheet (File → Settings → Timezone) — 2 cài đặt KHÁC nhau.
+ * ================================================================================== */
+var VN_OFFSET = '+07:00';
+var VN_MS = 7 * 3600 * 1000;
 
-// CHẠY BỞI TRIGGER mỗi ~1 tiếng: BẬT khi qua open_at, TẮT khi qua close_at (edge — chỉ 1 lần) → Telegram.
+// ms tuyệt đối → ISO giờ VN 'yyyy-MM-ddTHH:mm:ss+07:00' (số học thuần).
+function isoFromMs_(ms) {
+  var d = new Date(Number(ms) + VN_MS); // dời sang "wall clock" VN rồi đọc bằng getUTC*
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getUTCFullYear() + '-' + p(d.getUTCMonth() + 1) + '-' + p(d.getUTCDate()) +
+    'T' + p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + VN_OFFSET;
+}
+// Múi giờ của chính Google Sheet (KHÁC múi giờ project). getValues() dựng Date theo múi giờ này.
+function sheetTz_() {
+  try { return SpreadsheetApp.getActiveSpreadsheet().getSpreadsheetTimeZone() || TZ; } catch (e) { return TZ; }
+}
+// Bất kỳ giá trị giờ nào → ISO chuẩn giờ VN. Trống/sai → ''.
+function toIsoVN_(v) {
+  if (v instanceof Date) {
+    // Ô đã lỡ bị Sheets ép thành Date: instant được dựng theo MÚI GIỜ CỦA SHEET,
+    // nên phải đọc lại "wall clock" bằng ĐÚNG múi giờ đó rồi mới coi là giờ VN.
+    return toIsoVN_(Utilities.formatDate(v, sheetTz_(), 'yyyy-MM-dd HH:mm:ss'));
+  }
+  if (typeof v === 'number' && v > 20000 && v < 90000) {           // serial ngày của Sheets
+    return toIsoVN_(new Date(Date.UTC(1899, 11, 30) + Math.round(v * 86400000)).toISOString().replace('Z', '') .replace('T', ' '));
+  }
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  if (/([+-]\d{2}:?\d{2}|Z)$/.test(s)) {                          // đã có offset → giữ đúng mốc tuyệt đối
+    var ms = new Date(s).getTime();
+    return isNaN(ms) ? '' : isoFromMs_(ms);
+  }
+  // 'yyyy-MM-dd HH:mm[:ss]' hoặc dùng 'T' = GIỜ VN → GHÉP CHUỖI, không parse
+  var m = s.replace('T', ' ').match(/^(\d{4}-\d{2}-\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?/);
+  return m ? (m[1] + 'T' + m[2] + ':' + m[3] + ':' + (m[4] || '00') + VN_OFFSET) : '';
+}
+// Giá trị ô giờ (ISO đã lưu) → 'yyyy-MM-dd HH:mm' giờ VN cho picker đọc lại (cắt chuỗi thuần).
+function toDatetimeLocal_(v) {
+  var iso = toIsoVN_(v);
+  return iso ? (iso.slice(0, 10) + ' ' + iso.slice(11, 16)) : '';
+}
+// Chuỗi/Date/serial giờ → ms tuyệt đối. Mọi thứ đi qua toIsoVN_ (ISO có offset) → parse tuyệt đối.
+function parseWhen_(v) {
+  var iso = toIsoVN_(v);
+  if (!iso) return 0;
+  var t = new Date(iso).getTime();
+  return isNaN(t) ? 0 : t;
+}
+// ms → 'HH:mm dd-MM-yyyy' giờ VN (cho tin Telegram) — cắt từ ISO, không formatDate.
+function fmtWhen_(ms) {
+  var iso = isoFromMs_(ms);
+  return iso.slice(11, 16) + ' ' + iso.slice(8, 10) + '-' + iso.slice(5, 7) + '-' + iso.slice(0, 4);
+}
+
+// CHẠY BỞI TRIGGER: đưa cột active về ĐÚNG trạng thái theo lịch (level-based → idempotent, TỰ CHỮA
+// nếu lỡ một lần chạy). Chỉ ghi + báo Telegram khi trạng thái THỰC SỰ đổi. Trang không có lịch → bỏ qua.
 function autoTogglePages() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
   if (!sh || sh.getLastRow() < 2) return;
-  var props = PropertiesService.getScriptProperties();
-  var nowMs = Date.now();
-  var lastMs = Number(props.getProperty('AUTO_LAST_RUN')) || (nowMs - 65 * 60 * 1000);
   var idx = headerIndex_(sh);
+  if (idx.slug === undefined || idx.active === undefined) return;
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   for (var r = 0; r < vals.length; r++) {
     var slug = String(vals[r][idx.slug] || '').trim();
     if (!slug) continue;
+    var openIso = idx.open_at === undefined ? '' : toIsoVN_(vals[r][idx.open_at]);
+    var closeIso = idx.close_at === undefined ? '' : toIsoVN_(vals[r][idx.close_at]);
+    if (!openIso && !closeIso) continue;               // không đặt lịch → để admin bật/tắt tay
     var label = String(vals[r][idx.label] || slug);
     var active = String(vals[r][idx.active]).toUpperCase() === 'TRUE';
-    var openMs = parseWhen_(vals[r][idx.open_at]);
-    var closeMs = parseWhen_(vals[r][idx.close_at]);
-    // BẬT khi mốc open_at vừa đi qua trong khoảng (lastMs, nowMs]
-    if (openMs && openMs > lastMs && openMs <= nowMs && !active) {
-      sh.getRange(r + 2, idx.active + 1).setValue('TRUE');
-      staffTelegram_('🟢 TỰ ĐỘNG MỞ trang feedback: ' + label + ' (?sw=' + slug + ')\nĐúng lịch mở: ' + fmtWhen_(openMs));
-    }
-    // TẮT khi mốc close_at vừa đi qua
-    if (closeMs && closeMs > lastMs && closeMs <= nowMs && active) {
-      sh.getRange(r + 2, idx.active + 1).setValue('FALSE');
-      staffTelegram_('🔴 TỰ ĐỘNG TẮT trang feedback: ' + label + ' (?sw=' + slug + ') → redirect ' + REDIRECT_WHEN_OFF + '\nĐúng lịch tắt: ' + fmtWhen_(closeMs));
-    }
+    var desired = computeActiveFromSchedule_(openIso, closeIso);
+    if (desired === active) continue;                  // đã đúng → không đụng, không spam Telegram
+    sh.getRange(r + 2, idx.active + 1).setValue(desired ? 'TRUE' : 'FALSE');
+    staffTelegram_(desired
+      ? '🟢 TỰ ĐỘNG MỞ trang feedback: ' + label + ' (?sw=' + slug + ')\nTheo lịch mở: ' + fmtWhen_(parseWhen_(openIso))
+      : '🔴 TỰ ĐỘNG TẮT trang feedback: ' + label + ' (?sw=' + slug + ') → redirect ' + REDIRECT_WHEN_OFF +
+        '\nTheo lịch tắt: ' + fmtWhen_(parseWhen_(closeIso)));
   }
-  props.setProperty('AUTO_LAST_RUN', String(nowMs));
 }
 
 // Chạy tay 1 lần: cài trigger autoTogglePages mỗi 1 tiếng (không tạo trùng).
