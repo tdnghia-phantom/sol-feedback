@@ -77,8 +77,9 @@ function getSwValue(search) {
   }
   return sw;
 }
-/** Đánh dấu "router đã kiểm tra trạng thái" → trang workshop khỏi hỏi lại (hiện ngay). */
-function withFbok(target) { return target + (target.indexOf('?') === -1 ? '?' : '&') + 'fbok=1'; }
+/* Router chỉ chuyển hướng SỚM khi trang đã tắt (đỡ tải trang nặng). Trang workshop VẪN tự
+   kiểm tra lại — KHÔNG truyền cờ "đã kiểm tra" qua URL, vì cờ đó nằm trên thanh địa chỉ
+   nên F5/bookmark/gửi link sẽ vào được trang đã tắt. */
 
 /* ---- Chạy trong browser ---- */
 if (typeof window !== 'undefined' && typeof location !== 'undefined') {
@@ -94,18 +95,18 @@ if (typeof window !== 'undefined' && typeof location !== 'undefined') {
     var endpoint = cfg.ENDPOINT || '';
     var redirectOff = cfg.REDIRECT_WHEN_OFF || 'https://fbk.solenglishland.vn/';
     var sw = getSwValue(location.search);
-    if (!endpoint || endpoint.indexOf('{{') !== -1 || !sw) { location.replace(withFbok(target)); return; } // fail-open
+    if (!endpoint || endpoint.indexOf('{{') !== -1 || !sw) { location.replace(target); return; } // fail-open
     var done = false;
-    var timer = setTimeout(function () { if (!done) { done = true; location.replace(withFbok(target)); } }, 2500);
+    var timer = setTimeout(function () { if (!done) { done = true; location.replace(target); } }, 2500);
     var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
     fetch(endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(sw))
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (done) return; done = true; clearTimeout(timer);
         if (d && d.ok && d.active === false) { location.replace(d.redirect || redirectOff); } // TẮT → về trang chính
-        else { location.replace(withFbok(target)); }                                          // BẬT → vào trang workshop
+        else { location.replace(target); }                                          // BẬT → vào trang workshop
       })
-      .catch(function () { if (done) return; done = true; clearTimeout(timer); location.replace(withFbok(target)); });
+      .catch(function () { if (done) return; done = true; clearTimeout(timer); location.replace(target); });
   })();
 }
 

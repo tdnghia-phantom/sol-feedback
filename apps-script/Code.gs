@@ -703,12 +703,19 @@ function apiSavePage(token, data) {
   if (openIso && closeIso && new Date(closeIso).getTime() <= new Date(openIso).getTime()) {
     return { ok: false, message: 'Giờ kết thúc phải sau giờ bắt đầu.' };
   }
-  // Cột active: CÓ lịch → tính theo lịch + giờ hiện tại. KHÔNG lịch → GIỮ NGUYÊN trạng thái cũ
-  // (client không gửi `active` khi chỉ sửa tên/mô tả — không được tự bật lại trang đang tắt).
   var prevActive = found ? (String(found.obj.active).toUpperCase() === 'TRUE') : true;
+  var oldOpen = found ? toIsoVN_(found.obj.open_at) : '';
+  var oldClose = found ? toIsoVN_(found.obj.close_at) : '';
+  var schedChanged = (oldOpen !== openIso) || (oldClose !== closeIso);
+  // Cột active — CHỈ tính lại theo lịch khi TẠO MỚI hoặc khi LỊCH THỰC SỰ ĐỔI.
+  // Nếu chỉ sửa tên/ghi chú → GIỮ NGUYÊN trạng thái hiện tại, KHÔNG được tự bật lại
+  // trang mà admin vừa bấm Tắt tay.
   var active;
-  if (openIso || closeIso) active = computeActiveFromSchedule_(openIso, closeIso) ? 'TRUE' : 'FALSE';
-  else active = (data.active === undefined ? prevActive : (data.active !== false)) ? 'TRUE' : 'FALSE';
+  if ((openIso || closeIso) && (!existed || schedChanged)) {
+    active = computeActiveFromSchedule_(openIso, closeIso) ? 'TRUE' : 'FALSE';
+  } else {
+    active = (data.active === undefined ? prevActive : (data.active !== false)) ? 'TRUE' : 'FALSE';
+  }
   forcePageTextCols_(sh); // PHẢI ép TEXT TRƯỚC khi ghi — nếu không Sheets tự đổi chuỗi ISO thành Date
   upsertRow_(sh, 'slug', slug, {
     slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
@@ -722,8 +729,6 @@ function apiSavePage(token, data) {
       stateLine + '\n— ' + sess.name);
   } else {
     // SỬA: báo Telegram khi ĐỔI LỊCH hoặc khi trạng thái bật/tắt thay đổi (bỏ qua sửa tên/ghi chú vặt)
-    var oldOpen = toIsoVN_(found.obj.open_at), oldClose = toIsoVN_(found.obj.close_at);
-    var schedChanged = (oldOpen !== openIso) || (oldClose !== closeIso);
     var stateChanged = prevActive !== (active === 'TRUE');
     if (schedChanged || stateChanged) {
       var msg = '✏️ ĐỔI LỊCH trang feedback: ' + name + ' (?sw=' + slug + ')\n';
@@ -822,30 +827,40 @@ function whenLabel_(iso) {
   return ms ? fmtWhen_(ms) : '(không đặt)';
 }
 
-// CHẠY BỞI TRIGGER: đưa cột active về ĐÚNG trạng thái theo lịch (level-based → idempotent, TỰ CHỮA
-// nếu lỡ một lần chạy). Chỉ ghi + báo Telegram khi trạng thái THỰC SỰ đổi. Trang không có lịch → bỏ qua.
+// CHẠY BỞI TRIGGER: chỉ kích hoạt ĐÚNG LÚC vừa đi qua mốc open_at / close_at (edge-triggered).
+// QUAN TRỌNG: KHÔNG ép trạng thái theo lịch ở mỗi lần chạy — nếu ép thì admin bấm "Tắt" tay
+// một trang CÓ lịch sẽ bị bật lại ở lần chạy sau (làm hỏng nút bật/tắt). Ngoài đúng thời điểm
+// chuyển mốc, quyền quyết định thuộc về admin.
 function autoTogglePages() {
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
   if (!sh || sh.getLastRow() < 2) return;
   var idx = headerIndex_(sh);
   if (idx.slug === undefined || idx.active === undefined) return;
+  var props = PropertiesService.getScriptProperties();
+  var nowMs = Date.now();
+  var lastMs = Number(props.getProperty('AUTO_LAST_RUN')) || (nowMs - 65 * 60 * 1000);
   var vals = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   for (var r = 0; r < vals.length; r++) {
     var slug = String(vals[r][idx.slug] || '').trim();
     if (!slug) continue;
-    var openIso = idx.open_at === undefined ? '' : toIsoVN_(vals[r][idx.open_at]);
-    var closeIso = idx.close_at === undefined ? '' : toIsoVN_(vals[r][idx.close_at]);
-    if (!openIso && !closeIso) continue;               // không đặt lịch → để admin bật/tắt tay
     var label = String(vals[r][idx.label] || slug);
     var active = String(vals[r][idx.active]).toUpperCase() === 'TRUE';
-    var desired = computeActiveFromSchedule_(openIso, closeIso);
-    if (desired === active) continue;                  // đã đúng → không đụng, không spam Telegram
-    sh.getRange(r + 2, idx.active + 1).setValue(desired ? 'TRUE' : 'FALSE');
-    staffTelegram_(desired
-      ? '🟢 TỰ ĐỘNG MỞ trang feedback: ' + label + ' (?sw=' + slug + ')\nTheo lịch mở: ' + fmtWhen_(parseWhen_(openIso))
-      : '🔴 TỰ ĐỘNG TẮT trang feedback: ' + label + ' (?sw=' + slug + ') → redirect ' + REDIRECT_WHEN_OFF +
-        '\nTheo lịch tắt: ' + fmtWhen_(parseWhen_(closeIso)));
+    var openMs = idx.open_at === undefined ? 0 : parseWhen_(vals[r][idx.open_at]);
+    var closeMs = idx.close_at === undefined ? 0 : parseWhen_(vals[r][idx.close_at]);
+    // Vừa đi qua mốc MỞ trong khoảng (lastMs, nowMs] → BẬT
+    if (openMs && openMs > lastMs && openMs <= nowMs && !active) {
+      sh.getRange(r + 2, idx.active + 1).setValue('TRUE');
+      staffTelegram_('🟢 TỰ ĐỘNG MỞ trang feedback: ' + label + ' (?sw=' + slug + ')\nTheo lịch mở: ' + fmtWhen_(openMs));
+      active = true;
+    }
+    // Vừa đi qua mốc TẮT → TẮT
+    if (closeMs && closeMs > lastMs && closeMs <= nowMs && active) {
+      sh.getRange(r + 2, idx.active + 1).setValue('FALSE');
+      staffTelegram_('🔴 TỰ ĐỘNG TẮT trang feedback: ' + label + ' (?sw=' + slug + ') → redirect ' +
+        REDIRECT_WHEN_OFF + '\nTheo lịch tắt: ' + fmtWhen_(closeMs));
+    }
   }
+  props.setProperty('AUTO_LAST_RUN', String(nowMs));
 }
 
 // Chạy tay 1 lần: cài trigger autoTogglePages mỗi 1 tiếng (không tạo trùng).

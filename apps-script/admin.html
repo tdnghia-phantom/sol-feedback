@@ -34,9 +34,9 @@
     font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
     color:var(--ink); font-size:15px; line-height:1.55; font-weight:600; -webkit-text-size-adjust:100%;
     background-color:var(--cream);
-    /* Hoa văn bếp núc — CÙNG pattern với trang cookery để đồng bộ thương hiệu */
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140' viewBox='0 0 140 140'%3E%3Cg fill='none' stroke='%23EDDCBB' stroke-width='1.6' stroke-linecap='round' opacity='.55'%3E%3Cpath d='M24 18v16M20 18v7a4 4 0 0 0 8 0v-7'/%3E%3Ccircle cx='96' cy='40' r='7'/%3E%3Cpath d='M96 47v12'/%3E%3Cpath d='M40 104c0-8 12-8 12 0s-12 8-12 0z'/%3E%3Cpath d='M108 100l8 8m0-8l-8 8'/%3E%3C/g%3E%3C/svg%3E");
-    background-size:140px 140px;
+    /* Hoa văn TRUNG TÍNH (chấm tròn + tia nhỏ) — hợp mọi workshop, không riêng Cookery */
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23EDDCBB' stroke-width='1.5' stroke-linecap='round' opacity='.5'%3E%3Ccircle cx='24' cy='26' r='4'/%3E%3Cpath d='M84 18v10M79 23h10'/%3E%3Ccircle cx='96' cy='84' r='4'/%3E%3Cpath d='M30 88v10M25 93h10'/%3E%3C/g%3E%3C/svg%3E");
+    background-size:120px 120px;
   }
   h1,h2,h3,.brand,.kpi .n,.btn,.tab,.subtab,.modal-head{font-family:'Baloo 2','Nunito',cursive}
   img,table,pre,code{max-width:100%}
@@ -92,8 +92,10 @@
     display:flex; align-items:center; gap:10px; padding:0 14px; box-shadow:0 4px 14px -10px rgba(120,90,30,.5)}
   .topbar .t-title{flex:0 1 auto; min-width:0; font-weight:800; color:var(--olive); font-size:17px;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:flex; align-items:center; gap:9px}
-  .topbar .t-title::before{content:'🍪'; flex:0 0 auto; font-size:17px; line-height:1;
-    filter:drop-shadow(0 2px 3px rgba(120,90,30,.35))}
+  /* Dấu hiệu TRUNG TÍNH — trang này dùng cho MỌI workshop, không gắn với riêng workshop nào */
+  .topbar .t-title::before{content:''; flex:0 0 auto; width:14px; height:14px; border-radius:5px;
+    background:var(--g-green); transform:rotate(45deg);
+    box-shadow:0 3px 8px -3px rgba(105,129,58,.9), inset 0 0 0 2px rgba(255,255,255,.35)}
   .topbar .spacer{flex:1 1 auto; min-width:6px}
   .topbar .who{flex:0 0 auto; font-weight:800; font-size:13px; color:var(--ink-2);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px}
@@ -325,7 +327,7 @@
           <option value="2">2★</option>
           <option value="1">1★</option>
         </select>
-        <input type="text" id="fWs" placeholder="Workshop (vd cookery)">
+        <select id="fWs"><option value="">Tất cả workshop</option></select>
         <button class="btn ghost small" id="fReload">Lọc / Tải lại</button>
       </div>
       <div id="fbList"><div class="loading">Đang tải…</div></div>
@@ -385,6 +387,11 @@ var WS_LINK_BASE = 'https://fbk.solenglishland.vn/?sw='; // đường dẫn côn
 var $ = function(id){ return document.getElementById(id); };
 function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); setTimeout(function(){ t.className=''; }, 2600); }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+// 'yyyy-MM-dd HH:mm' (giờ VN từ server) → 'dd-mm-yy hh:mm' để hiển thị
+function fmtVN(s){
+  var m = String(s==null?'':s).trim().replace('T',' ').match(/^(\d{4})-(\d{2})-(\d{2})[ ](\d{2}):(\d{2})/);
+  return m ? (m[3]+'-'+m[2]+'-'+m[1].slice(2)+' '+m[4]+':'+m[5]) : String(s||'');
+}
 function errMsg(e){ var m=String(e && e.message || e || ''); if(m.indexOf('AUTH_EXPIRED')>-1) return 'Phiên đã hết hạn — đăng nhập lại.'; if(m.indexOf('FORBIDDEN')>-1) return 'Bạn không có quyền admin cho mục này.'; return m || 'Có lỗi xảy ra.'; }
 function starsHtml(n){ n=Number(n)||0; var s=''; for(var i=1;i<=5;i++){ s += i<=n ? '★' : '<span class="off">★</span>'; } return '<span class="stars">'+s+'</span>'; }
 function fmtWhen(iso){ var m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/); return m ? (m[3]+'/'+m[2]+' '+m[4]+':'+m[5]) : esc(iso||''); }
@@ -421,7 +428,20 @@ function enterApp(){
   var isAdmin = ME.role === 'admin';
   document.querySelectorAll('.admin-only').forEach(function(el){ el.classList.toggle('hidden', !isAdmin); });
   showApp();
+  fillWorkshopFilter();
   switchTab('feedback');
+}
+// Nạp dropdown lọc workshop từ DANH SÁCH TRANG thật (không bắt gõ tay). staff cũng gọi được.
+async function fillWorkshopFilter(){
+  var sel = $('fWs'); if(!sel) return;
+  try {
+    var res = await run('apiListPages', TOKEN);
+    var list = (res && res.pages) || [];
+    var cur = sel.value;
+    sel.innerHTML = '<option value="">Tất cả workshop</option>'
+      + list.map(function(w){ return '<option value="'+esc(w.slug)+'">'+esc(w.label||w.slug)+'</option>'; }).join('');
+    if(cur) sel.value = cur;
+  } catch(e){ /* không nạp được thì giữ "Tất cả workshop" */ }
 }
 
 function switchTab(name){
@@ -553,8 +573,8 @@ function pageRow(w){
   var link = WS_LINK_BASE + encodeURIComponent(w.slug);
   var j = esc(JSON.stringify(w));
   var sched = '';
-  if(w.open_at) sched += '<br><span class="muted" style="font-size:11.5px">🟢 tự mở: '+esc(String(w.open_at).replace('T',' '))+'</span>';
-  if(w.close_at) sched += '<br><span class="muted" style="font-size:11.5px">🔴 tự tắt: '+esc(String(w.close_at).replace('T',' '))+'</span>';
+  if(w.open_at) sched += '<br><span class="muted" style="font-size:11.5px">🟢 tự mở: '+esc(fmtVN(w.open_at))+'</span>';
+  if(w.close_at) sched += '<br><span class="muted" style="font-size:11.5px">🔴 tự tắt: '+esc(fmtVN(w.close_at))+'</span>';
   return '<tr><td><b>'+esc(w.label||w.slug)+'</b>'
     + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
     + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a>'+sched+'</td>'
@@ -694,6 +714,7 @@ $('logoutBtn').addEventListener('click', doLogout);
 $('fReload').addEventListener('click', loadFeedback);
 $('fQ').addEventListener('keydown', function(e){ if(e.key==='Enter') loadFeedback(); });
 $('fRating').addEventListener('change', loadFeedback);
+$('fWs').addEventListener('change', loadFeedback);
 document.querySelectorAll('.subtab').forEach(function(b){ b.addEventListener('click', function(){ manageSub = b.getAttribute('data-sub'); loadManage(); }); });
 $('btnCreate').addEventListener('click', function(){ if(manageSub==='pages') openPageModal(null); else openStaffModal(null); });
 $('modalX').addEventListener('click', closeModal);

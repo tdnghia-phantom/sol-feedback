@@ -440,8 +440,9 @@ if (typeof document !== 'undefined') {
     // Bật/tắt trang feedback: hỏi backend TRƯỚC khi lộ nội dung. TẮT → redirect NGAY (giữ overlay);
     // BẬT / lỗi / chưa cấu hình → gỡ overlay hiện trang. Fail-open + timeout 2.5s để không kẹt user hợp lệ.
     function checkPageStatus() {
-      // Router (index.html) đã kiểm tra trạng thái rồi (fbok=1) → hiện trang luôn, khỏi hỏi lại
-      if (typeof location !== 'undefined' && /(?:^|[?&])fbok=1(?:&|$)/.test(location.search)) { revealPage(); return; }
+      // LƯU Ý: TUYỆT ĐỐI không bỏ qua bước kiểm tra này dựa vào cờ trên URL — trước đây dùng
+      // cờ `fbok=1` do router gắn, nhưng cờ nằm luôn trên thanh địa chỉ nên F5 / bookmark /
+      // gửi link là vào được trang ĐÃ TẮT. Trang workshop LUÔN tự hỏi lại backend.
       var endpoint = FEEDBACK_CONFIG.ENDPOINT;
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
       if (!endpoint || endpoint.indexOf('{{') !== -1 || !wsId) { revealPage(); return; }
