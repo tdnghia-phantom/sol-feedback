@@ -451,23 +451,46 @@ function openPageModal(w){
     var data = { slug:$('mSlug').value.trim(), label:$('mLabel').value.trim(), note:$('mNote').value.trim(),
       open_at:$('mOpen').value.trim(), close_at:$('mClose').value.trim() };
     if(!data.slug){ toast('Cần mã slug', true); return; }
+    if(endBeforeStart(data.open_at, data.close_at)){ toast('Giờ kết thúc phải SAU giờ bắt đầu', true); return; }
     var res = await run('apiSavePage', TOKEN, data);
     if(res && res.ok){ toast('✓ Đã lưu trang'); closeModal(); loadPages(); } else toast((res&&res.message)||'Lỗi', true);
   }, 'Lưu');
   initDatePickers();
 }
 // Gắn datetime picker cho ô giờ: flatpickr (dd-mm-yy hh:mm, 24h, click tự mở); CDN lỗi → native datetime-local.
+var FP = {};
 function initDatePickers(){
+  FP = {};
   ['mOpen','mClose'].forEach(function(id){
     var el = $(id); if(!el) return;
     if(typeof flatpickr !== 'undefined'){
-      flatpickr(el, { enableTime:true, time_24hr:true, dateFormat:'Y-m-d H:i', altInput:true, altFormat:'d-m-y H:i', allowInput:false, clickOpens:true, disableMobile:true });
+      FP[id] = flatpickr(el, {
+        enableTime:true, time_24hr:true, dateFormat:'Y-m-d H:i', altInput:true, altFormat:'d-m-y H:i',
+        allowInput:false, clickOpens:true, disableMobile:true,
+        onChange: function(sel){
+          // RÀNG BUỘC NGAY TRÊN GIAO DIỆN: giờ kết thúc không được trước giờ bắt đầu
+          if(id==='mOpen' && FP.mClose) FP.mClose.set('minDate', sel[0] || null);
+        }
+      });
     } else {
       var v = el.value;                      // GIỮ giá trị TRƯỚC khi đổi type (đổi type sẽ xoá value)
       el.type = 'datetime-local'; el.removeAttribute('readonly');
       el.value = v ? v.replace(' ', 'T') : '';
     }
   });
+  // Mở form Sửa mà đã có sẵn giờ bắt đầu → khoá luôn giới hạn cho ô kết thúc
+  if(FP.mOpen && FP.mClose && FP.mOpen.selectedDates[0]) FP.mClose.set('minDate', FP.mOpen.selectedDates[0]);
+  // Fallback native: dùng thuộc tính min
+  if(!FP.mOpen && $('mOpen') && $('mClose')){
+    var o = $('mOpen'), c = $('mClose');
+    o.addEventListener('change', function(){ c.min = o.value || ''; });
+    if(o.value) c.min = o.value;
+  }
+}
+// So sánh 2 mốc dạng 'yyyy-MM-dd HH:mm' (hoặc có 'T') — cùng định dạng nên so chuỗi là đúng thứ tự thời gian.
+function endBeforeStart(openStr, closeStr){
+  if(!openStr || !closeStr) return false;
+  return closeStr.replace('T',' ') <= openStr.replace('T',' ');
 }
 
 /* ---- Nhân viên ---- */

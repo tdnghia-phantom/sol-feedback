@@ -714,8 +714,24 @@ function apiSavePage(token, data) {
     slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
     open_at: openIso, close_at: closeIso
   });
+  var name = clean_(data.label) || slug;
+  var stateLine = 'Trạng thái sau khi lưu: ' + (active === 'TRUE' ? '🟢 ĐANG BẬT' : '🔴 ĐANG TẮT');
   if (!existed) {
-    staffTelegram_('🆕 TẠO TRANG FEEDBACK: ' + (clean_(data.label) || slug) + ' (?sw=' + slug + ')\n— ' + sess.name);
+    staffTelegram_('🆕 TẠO TRANG FEEDBACK: ' + name + ' (?sw=' + slug + ')\n' +
+      '🟢 Giờ bắt đầu: ' + whenLabel_(openIso) + '\n🔴 Giờ kết thúc: ' + whenLabel_(closeIso) + '\n' +
+      stateLine + '\n— ' + sess.name);
+  } else {
+    // SỬA: báo Telegram khi ĐỔI LỊCH hoặc khi trạng thái bật/tắt thay đổi (bỏ qua sửa tên/ghi chú vặt)
+    var oldOpen = toIsoVN_(found.obj.open_at), oldClose = toIsoVN_(found.obj.close_at);
+    var schedChanged = (oldOpen !== openIso) || (oldClose !== closeIso);
+    var stateChanged = prevActive !== (active === 'TRUE');
+    if (schedChanged || stateChanged) {
+      var msg = '✏️ ĐỔI LỊCH trang feedback: ' + name + ' (?sw=' + slug + ')\n';
+      if (oldOpen !== openIso) msg += '🟢 Giờ bắt đầu: ' + whenLabel_(oldOpen) + ' → ' + whenLabel_(openIso) + '\n';
+      if (oldClose !== closeIso) msg += '🔴 Giờ kết thúc: ' + whenLabel_(oldClose) + ' → ' + whenLabel_(closeIso) + '\n';
+      if (stateChanged) msg += (active === 'TRUE' ? '🟢 Trang được BẬT' : '🔴 Trang bị TẮT') + ' theo lịch\n';
+      staffTelegram_(msg + stateLine + '\n— ' + sess.name);
+    }
   }
   return { ok: true, active: active === 'TRUE' };
 }
@@ -799,6 +815,11 @@ function parseWhen_(v) {
 function fmtWhen_(ms) {
   var iso = isoFromMs_(ms);
   return iso.slice(11, 16) + ' ' + iso.slice(8, 10) + '-' + iso.slice(5, 7) + '-' + iso.slice(0, 4);
+}
+// Nhãn giờ dễ đọc cho tin Telegram; chưa đặt → '(không đặt)'.
+function whenLabel_(iso) {
+  var ms = parseWhen_(iso);
+  return ms ? fmtWhen_(ms) : '(không đặt)';
 }
 
 // CHẠY BỞI TRIGGER: đưa cột active về ĐÚNG trạng thái theo lịch (level-based → idempotent, TỰ CHỮA
