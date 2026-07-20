@@ -288,8 +288,12 @@ if (typeof document !== 'undefined') {
         .then(function (data) {
           if (data && data.ok) { showThanks(); }
           else if (data && data.closed) {
+            // Trang đóng ngay giữa lúc điền (hết giờ, hoặc admin vừa tắt). Server đã từ chối ghi.
+            // Cho đọc lý do vài giây rồi ĐÁ RA — không để phụ huynh ngồi lại gõ tiếp vô ích.
             setSubmitting(false);
             showError('submit', data.message || 'Trang cảm nhận này đã đóng. Ba Mẹ vui lòng liên hệ SOL qua Zalo 0938.206.968 nhé 🙏');
+            var off = data.redirect || FEEDBACK_CONFIG.REDIRECT_WHEN_OFF;
+            if (typeof location !== 'undefined' && off) setTimeout(function () { location.replace(off); }, 4500);
           }
           else {
             setSubmitting(false);
@@ -437,28 +441,66 @@ if (typeof document !== 'undefined') {
       var gate = $('[data-fb-gate]');
       if (gate) gate.style.display = 'none';
     }
-    // Bật/tắt trang feedback: hỏi backend TRƯỚC khi lộ nội dung. TẮT → redirect NGAY (giữ overlay);
-    // BẬT / lỗi / chưa cấu hình → gỡ overlay hiện trang. Fail-open + timeout 2.5s để không kẹt user hợp lệ.
+    /**
+     * Cổng bật/tắt trang feedback.
+     *
+     * NGUYÊN TẮC (chủ dự án chốt): **trạng thái của TRANG quyết định, không phải tốc độ mạng.**
+     * Trang còn cho vào thì cứ vào; không cho vào thì đá ra. Mạng chậm không phải lý do từ chối
+     * phụ huynh gửi cảm nhận.
+     *
+     * Suy ra 2 điều, phải làm ĐỦ CẢ HAI:
+     *  (1) Hết 2.5s chưa có đáp án → GỠ overlay cho vào (fail-open). Không bắt phụ huynh
+     *      ngồi nhìn màn trắng chỉ vì Apps Script đang khởi động nguội.
+     *  (2) NHƯNG KHÔNG BỎ CUỘC — vẫn hỏi lại tới khi có đáp án dứt khoát. Bản trước `.catch`
+     *      xong là thôi luôn, nên một cú nghẽn mạng 3 giây = trang ĐÃ TẮT mở tự do cả phiên.
+     *      Nay đáp án về là TẮT thì đá ra NGAY, kể cả trang đã hiện rồi.
+     * Nói cách khác: mạng chỉ được quyền quyết định "chờ hay hiện", KHÔNG được quyền kết luận "trang đang bật".
+     *
+     * LƯU Ý: TUYỆT ĐỐI không bỏ qua bước kiểm tra này dựa vào cờ trên URL — trước đây dùng
+     * cờ `fbok=1` do router gắn, nhưng cờ nằm luôn trên thanh địa chỉ nên F5 / bookmark /
+     * gửi link là vào được trang ĐÃ TẮT. Trang workshop LUÔN tự hỏi lại backend.
+     */
     function checkPageStatus() {
-      // LƯU Ý: TUYỆT ĐỐI không bỏ qua bước kiểm tra này dựa vào cờ trên URL — trước đây dùng
-      // cờ `fbok=1` do router gắn, nhưng cờ nằm luôn trên thanh địa chỉ nên F5 / bookmark /
-      // gửi link là vào được trang ĐÃ TẮT. Trang workshop LUÔN tự hỏi lại backend.
       var endpoint = FEEDBACK_CONFIG.ENDPOINT;
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
       if (!endpoint || endpoint.indexOf('{{') !== -1 || !wsId) { revealPage(); return; }
-      var revealTimer = setTimeout(revealPage, 2500); // mạng chậm → vẫn hiện trang
+
+      var MAX_TRIES = 4;          // 0s + 2s + 4s + 6s — thừa sức phủ cold start Apps Script (3-6s)
+      var tries = 0;
+      var settled = false;        // đã có đáp án DỨT KHOÁT từ server → ngừng hỏi
+      var revealTimer = setTimeout(revealPage, 2500);
       var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
-      fetch(endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(wsId))
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          clearTimeout(revealTimer);
-          if (d && d.ok && d.active === false) {
-            // TẮT → điều hướng ngay, KHÔNG gỡ overlay (không lộ nội dung feedback)
-            var to = (d.redirect || FEEDBACK_CONFIG.REDIRECT_WHEN_OFF);
-            if (typeof location !== 'undefined' && to) location.replace(to); else revealPage();
-          } else { revealPage(); }
-        })
-        .catch(function () { clearTimeout(revealTimer); revealPage(); /* fail-open */ });
+      var url = endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(wsId);
+
+      function goOff(to) {
+        settled = true; clearTimeout(revealTimer);
+        to = to || FEEDBACK_CONFIG.REDIRECT_WHEN_OFF;
+        if (typeof location !== 'undefined' && to) location.replace(to); else revealPage();
+      }
+      function retry() {
+        if (settled) return;
+        revealPage();             // fail-open: lỗi mạng KHÔNG được chặn phụ huynh...
+        if (tries < MAX_TRIES) setTimeout(ask, tries * 2000); // ...nhưng vẫn hỏi tiếp
+      }
+      function ask() {
+        if (settled) return;
+        tries++;
+        // _= chống cache: response đi qua googleusercontent.com có thể bị trình duyệt lưu đệm,
+        // dùng lại kết quả active:true cũ thì trang đã tắt vẫn vào được.
+        fetch(url + '&_=' + tries, { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (settled) return;
+            if (d && d.ok && typeof d.active === 'boolean') {
+              if (d.active === false) { goOff(d.redirect); }   // TẮT → đá ra, dù trang đã hiện
+              else { settled = true; clearTimeout(revealTimer); revealPage(); }
+              return;
+            }
+            retry();              // trả về thứ không hiểu (vd deployment cũ trả HTML) → hỏi lại
+          })
+          .catch(retry);
+      }
+      ask();
     }
 
     function init() {

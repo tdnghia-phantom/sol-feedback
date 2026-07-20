@@ -99,7 +99,9 @@ if (typeof window !== 'undefined' && typeof location !== 'undefined') {
     var done = false;
     var timer = setTimeout(function () { if (!done) { done = true; location.replace(target); } }, 2500);
     var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
-    fetch(endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(sw))
+    // Router chỉ cần trả lời NHANH (đỡ tải trang nặng); hỏi lại kỹ là việc của trang workshop.
+    // Vẫn phải chống cache: dùng lại kết quả active:true cũ = trang đã tắt vẫn vào được.
+    fetch(endpoint + sep + 'action=pagestatus&_=' + (+new Date()) + '&sw=' + encodeURIComponent(sw), { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (done) return; done = true; clearTimeout(timer);
