@@ -96,6 +96,8 @@
   .topbar .t-title::before{content:''; flex:0 0 auto; width:14px; height:14px; border-radius:5px;
     background:var(--g-green); transform:rotate(45deg);
     box-shadow:0 3px 8px -3px rgba(105,129,58,.9), inset 0 0 0 2px rgba(255,255,255,.35)}
+  .topbar .build{flex:0 0 auto; font-size:10.5px; font-weight:800; letter-spacing:.3px;
+    color:var(--ink-2); opacity:.6; background:rgba(0,0,0,.05); border-radius:999px; padding:2px 7px}
   .topbar .spacer{flex:1 1 auto; min-width:6px}
   .topbar .who{flex:0 0 auto; font-weight:800; font-size:13px; color:var(--ink-2);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px}
@@ -302,6 +304,9 @@
 <div id="app" class="hidden">
   <div class="topbar">
     <div class="t-title">SOL Feedback · Quản trị</div>
+    <!-- Dấu phiên bản: nhìn số này là biết bản admin đang chạy có phải bản mới nhất chưa
+         (sửa file trong repo KHÔNG tự cập nhật Apps Script — phải dán lại + Deploy). -->
+    <span class="build" title="Phiên bản giao diện đang chạy">v1.4.0</span>
     <div class="spacer"></div>
     <span class="who" id="whoName"></span>
     <span class="chip-role" id="whoRole"></span>
@@ -386,7 +391,9 @@ var ME = { name:'', role:'' };
 var WS_LINK_BASE = 'https://fbk.solenglishland.vn/?sw='; // đường dẫn công khai của trang feedback
 var $ = function(id){ return document.getElementById(id); };
 function toast(msg, bad){ var t=$('toast'); t.textContent=msg; t.className='show'+(bad?' bad':''); setTimeout(function(){ t.className=''; }, 2600); }
-function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+// PHẢI escape cả dấu nháy đơn: các dòng danh sách nhúng JSON vào thuộc tính data-edit='...'
+// (nháy ĐƠN), nên một nhãn kiểu  Kids' Cooking  sẽ đóng thuộc tính sớm ⇒ gãy nút Sửa / Bật-Tắt.
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
 // 'yyyy-MM-dd HH:mm' (giờ VN từ server) → 'dd-mm-yy hh:mm' để hiển thị
 function fmtVN(s){
   var m = String(s==null?'':s).trim().replace('T',' ').match(/^(\d{4})-(\d{2})-(\d{2})[ ](\d{2}):(\d{2})/);

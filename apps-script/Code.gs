@@ -35,14 +35,20 @@ function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents); // client gửi text/plain → parse tay
 
+    // ws_id hạ về chữ thường NGAY: slug trong feedback-page-list luôn lowercase, nếu ghi
+    // nguyên dạng gõ trên URL thì dropdown lọc workshop ở tab Cảm nhận sẽ không khớp.
+    var wsId = (safeStr_(data.ws_id, 40) || 'unknown').toLowerCase();
+
+    // --- Gate bật/tắt trang: trang bị TẮT → KHÔNG ghi, báo closed + redirect ---
+    // ĐỨNG TRƯỚC honeypot: nếu để sau, payload dính honeypot sẽ trả ok:true và client hiện
+    // màn "Cảm ơn" cho một trang đã tắt.
+    if (!isPageActive_(wsId)) {
+      return jsonOut_({ ok: false, closed: true, redirect: REDIRECT_WHEN_OFF, message: 'Trang cảm nhận này đã tắt.' });
+    }
+
     // --- Chống spam: honeypot → silent drop (trả ok nhưng KHÔNG ghi) ---
     if (data._hp) {
       return jsonOut_({ ok: true });
-    }
-
-    // --- Gate bật/tắt trang (Phase 2): trang bị TẮT → KHÔNG ghi, báo closed + redirect ---
-    if (!isPageActive_(safeStr_(data.ws_id, 40) || 'unknown')) {
-      return jsonOut_({ ok: false, closed: true, redirect: REDIRECT_WHEN_OFF, message: 'Trang cảm nhận này đã tắt.' });
     }
 
     var note = String(data.note || '');
@@ -64,7 +70,7 @@ function doPost(e) {
       sheet.appendRow([
         submissionId,
         createdAt,
-        safeStr_(data.ws_id, 40) || 'unknown',
+        wsId,
         rating === null ? '' : rating,
         safeStr_(data.child_enjoy, 60),
         safeStr_(data.intent, 60),
@@ -119,7 +125,19 @@ function doGet(e) {
  *  - Cột phone (I) định dạng TEXT để KHÔNG mất số 0 đầu (0938… ≠ 938…)
  *  - Tạo sheet 'dashboard' với công thức thống kê tự động (FR-10)
  */
+/**
+ * CHẶN GỌI TỪ XA. Apps Script coi MỌI hàm không kết thúc bằng "_" là công khai — khách vãng lai
+ * mở trang admin rồi gọi google.script.run.setupFeedbackSheet() là XOÁ SẠCH sheet dashboard.
+ * Người chạy tay trong editor có activeUser = email chủ sheet; khách ẩn danh qua web app thì rỗng.
+ */
+function assertEditorOnly_() {
+  var who = '';
+  try { who = Session.getActiveUser().getEmail() || ''; } catch (e) { who = ''; }
+  if (!who) throw new Error('TU_CHOI: hàm cài đặt chỉ được chạy TAY trong Apps Script editor.');
+}
+
 function setupFeedbackSheet() {
+  assertEditorOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   // Múi giờ CỦA SHEET (khác múi giờ project Apps Script) — đặt luôn cho khớp, tránh lệch khi xem tay.
   try { if (ss.getSpreadsheetTimeZone() !== TZ) ss.setSpreadsheetTimeZone(TZ); } catch (e) {}
@@ -505,16 +523,21 @@ function apiSaveStaff(token, data) {
   if (!passcode || !name) return { ok: false, message: 'Cần passcode + tên.' };
   var role = String(data.role).toLowerCase() === 'admin' ? 'admin' : 'staff';
   var sh = getStaffSheet_();
-  var existed = !!findRow_(sh, 'passcode', passcode);
+  var prev = findRow_(sh, 'passcode', passcode);
+  var existed = !!prev;
+  // GIỮ NGUYÊN trạng thái khoá khi form không gửi `active` (modal Sửa chỉ gửi thông tin cơ bản).
+  // Trước đây mặc định 'TRUE' ⇒ chỉ sửa số điện thoại cũng MỞ KHOÁ lại tài khoản đã bị khoá.
+  var prevActive = existed ? (String(prev.obj.active).toUpperCase() === 'TRUE') : true;
+  var isActive = (data.active === undefined) ? prevActive : (data.active !== false);
   upsertRow_(sh, 'passcode', passcode, {
     passcode: passcode, name: name, role: role,
-    active: data.active === false ? 'FALSE' : 'TRUE',
+    active: isActive ? 'TRUE' : 'FALSE',
     telegram_user_id: clean_(data.telegram_user_id),
     phone: clean_(data.phone), note: clean_(data.note)
   });
   forceStaffTextCols_(sh); // giữ passcode + telegram_user_id dạng text (id lớn không đổi khoa học)
   staffTelegram_((existed ? '✏️ CẬP NHẬT NHÂN VIÊN' : '👤 THÊM NHÂN VIÊN') + '\n' + name + ' · ' + role +
-    (data.active === false ? ' · ĐANG KHÓA' : '') + '\n— ' + sess.name);
+    (isActive ? '' : ' · ĐANG KHÓA') + '\n— ' + sess.name);
   return { ok: true };
 }
 
@@ -597,6 +620,7 @@ function staffTelegram_(text) {
 /* ------------------------------- SETUP (chạy tay 1 lần) ------------------------------- */
 // Tạo sheet staff-role + header + 1 dòng admin mẫu (nhớ ĐỔI passcode ngay).
 function setupStaffRoleSheet() {
+  assertEditorOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(STAFF_SHEET) || ss.insertSheet(STAFF_SHEET);
   sh.getRange(1, 1, 1, sh.getMaxColumns()).clearContent();
@@ -648,24 +672,57 @@ function forcePageTextCols_(sh) {
 
 // Tên workshop để hiện trong tin Telegram — LẤY TỪ danh sách feedback-page-list (cột label),
 // KHÔNG dùng slug (đuôi link). Không tìm thấy → fallback về slug.
+/**
+ * Tìm dòng theo slug, KHÔNG phân biệt hoa/thường.
+ * findRow_ so khớp thô (đúng cho passcode/submission_id — chỗ đó hoa-thường phải khác nhau),
+ * nhưng mọi hàm tra slug đều .toLowerCase() trước. Lệch nhau ⇒ ô gõ tay "Ckry" trong sheet
+ * sẽ KHÔNG khớp ⇒ isPageActive_ tưởng trang chưa khai báo ⇒ trả BẬT ⇒ trang đã tắt vẫn vào được.
+ */
+function findPageRow_(sheet, slug) {
+  slug = String(slug || '').trim().toLowerCase();
+  if (!slug || !sheet) return null;
+  var idx = headerIndex_(sheet); var col = idx['slug'];
+  if (col === undefined) return null;
+  var last = sheet.getLastRow(); if (last < 2) return null;
+  var vals = sheet.getRange(2, 1, last - 1, sheet.getLastColumn()).getValues();
+  for (var r = 0; r < vals.length; r++) {
+    //   = khoảng trắng không ngắt, hay dính khi dán từ nơi khác vào ô
+    if (String(vals[r][col]).replace(/ /g, ' ').trim().toLowerCase() === slug) {
+      var obj = {}; Object.keys(idx).forEach(function (h) { obj[h] = vals[r][idx[h]]; });
+      return { rowIndex: r + 2, obj: obj };
+    }
+  }
+  return null;
+}
+
 function pageLabel_(slug) {
   slug = String(slug || '').trim().toLowerCase();
   if (!slug) return 'unknown';
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
   if (!sh) return slug;
-  var found = findRow_(sh, 'slug', slug);
+  var found = findPageRow_(sh, slug);
   return found ? (String(found.obj.label || slug)) : slug;
 }
 
+/**
+ * Trạng thái THẬT của trang = cột active BẬT **VÀ** đang trong khung giờ lịch.
+ *
+ * TRƯỚC ĐÂY hàm này chỉ đọc cột `active`, nên toàn bộ hiệu lực của close_at phụ thuộc vào
+ * trigger chạy mỗi tiếng. Chưa chạy installAutoToggleTrigger() lần nào ⇒ close_at VÔ NGHĨA,
+ * trang không bao giờ tự tắt. Có trigger thì vẫn trễ tới ~60 phút sau giờ hẹn.
+ * Nay tính lịch ngay lúc có request ⇒ đúng giờ tới từng giây, không cần trigger.
+ * Trigger giữ lại chỉ để ghi cột active cho admin nhìn + bắn Telegram.
+ */
 function isPageActive_(slug) {
   slug = String(slug || '').trim().toLowerCase();
   if (!slug) return true;
   // Đọc trực tiếp (KHÔNG tự tạo sheet) — tránh side-effect/race trên đường ghi công khai.
   var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(PAGE_SHEET);
   if (!sh) return true; // chưa có sheet → mặc định BẬT (fail-open)
-  var found = findRow_(sh, 'slug', slug);
+  var found = findPageRow_(sh, slug);
   if (!found) return true; // chưa khai báo → mặc định BẬT
-  return String(found.obj.active).toUpperCase() === 'TRUE';
+  if (String(found.obj.active).toUpperCase() !== 'TRUE') return false; // admin tắt tay → tắt
+  return computeActiveFromSchedule_(toIsoVN_(found.obj.open_at), toIsoVN_(found.obj.close_at));
 }
 
 function apiListPages(token) {
@@ -865,6 +922,7 @@ function autoTogglePages() {
 
 // Chạy tay 1 lần: cài trigger autoTogglePages mỗi 1 tiếng (không tạo trùng).
 function installAutoToggleTrigger() {
+  assertEditorOnly_();
   ScriptApp.getProjectTriggers().forEach(function (t) {
     if (t.getHandlerFunction() === 'autoTogglePages') ScriptApp.deleteTrigger(t);
   });
@@ -875,6 +933,7 @@ function installAutoToggleTrigger() {
 
 // Chạy tay 1 lần: tạo sheet feedback-page-list + nạp sẵn ckry (SOL Cookery) + test.
 function setupFeedbackPageList() {
+  assertEditorOnly_();
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(PAGE_SHEET) || ss.insertSheet(PAGE_SHEET);
   sh.getRange(1, 1, 1, sh.getMaxColumns()).clearContent();
