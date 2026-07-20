@@ -585,7 +585,13 @@ function pageRow(w){
   return '<tr><td><b>'+esc(w.label||w.slug)+'</b>'
     + (w.note?'<br><span class="muted" style="font-size:12px">'+esc(w.note)+'</span>':'')
     + '<br><a class="ws-link" href="'+esc(link)+'" target="_blank" rel="noopener">'+esc(link)+'</a>'+sched+'</td>'
-    + '<td>'+(w.active?'<span class="tag-on">● Đang bật</span>':'<span class="tag-lock">● Đã tắt</span>')+'</td>'
+    // w.effective = điều PHỤ HUYNH THỰC SỰ GẶP. Lệch với cột active nghĩa là lịch đang chặn
+    // (đã qua giờ đóng / chưa tới giờ mở) — phải nói rõ, kẻo tưởng trang mở mà thật ra đang đá người ta ra.
+    + '<td>'+(w.active
+        ? (w.effective===false
+            ? '<span class="tag-lock">● Đang tắt</span><br><span class="muted" style="font-size:11px">theo lịch — bấm Bật để mở lại</span>'
+            : '<span class="tag-on">● Đang bật</span>')
+        : '<span class="tag-lock">● Đã tắt</span>')+'</td>'
     + '<td class="row-actions"><button class="btn ghost small" data-edit=\''+j+'\'>Sửa</button>'
     + '<button class="btn ghost small'+(w.active?' terra':'')+'" data-toggle=\''+j+'\'>'+(w.active?'Tắt':'Bật')+'</button></td></tr>';
 }

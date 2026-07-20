@@ -398,14 +398,16 @@ function apiListFeedback(token, filter) {
   var idx = headerIndex_(sh);
   var vals = sh.getRange(2, 1, last - 1, sh.getLastColumn()).getValues();
   var q = String(filter.q || '').trim().toLowerCase();
-  var wsFilter = clean_(filter.ws);
+  // Hạ chữ thường CẢ HAI VẾ: dropdown gửi slug thô từ page-list, còn doPost luôn ghi ws_id đã
+  // lowercase — so khớp thô thì lọc ra 0 kết quả dù dữ liệu có thật.
+  var wsFilter = clean_(filter.ws).toLowerCase();
   var ratingFilter = clean_(filter.rating);
   var out = [];
   for (var r = vals.length - 1; r >= 0; r--) { // mới nhất trước
     var row = vals[r];
     var o = {}; Object.keys(idx).forEach(function (h) { o[h] = row[idx[h]]; });
     var rating = Number(o.rating) || 0;
-    if (wsFilter && String(o.ws_id) !== wsFilter) continue;
+    if (wsFilter && String(o.ws_id).trim().toLowerCase() !== wsFilter) continue;
     if (ratingFilter === 'low') { if (!(rating >= 1 && rating <= 2)) continue; }
     else if (ratingFilter && rating !== Number(ratingFilter)) continue;
     if (q) {
@@ -722,7 +724,14 @@ function isPageActive_(slug) {
   var found = findPageRow_(sh, slug);
   if (!found) return true; // chưa khai báo → mặc định BẬT
   if (String(found.obj.active).toUpperCase() !== 'TRUE') return false; // admin tắt tay → tắt
-  return computeActiveFromSchedule_(toIsoVN_(found.obj.open_at), toIsoVN_(found.obj.close_at));
+  // Ô có nội dung nhưng KHÔNG parse được (ai đó gõ tay "20/07/2026" vào sheet) → toIsoVN_ trả ''
+  // và '' nghĩa là "không có hạn" ⇒ lịch đóng bị nuốt im lặng, trang không bao giờ tự tắt.
+  // Đặt lịch là ý định đóng trang, nên không đọc được thì coi như ĐANG ĐÓNG (an toàn hơn là
+  // mở vô thời hạn). Admin thấy ngay vì cột `effective` trong danh sách sẽ báo lệch.
+  var rawOpen = clean_(found.obj.open_at), rawClose = clean_(found.obj.close_at);
+  var isoOpen = toIsoVN_(found.obj.open_at), isoClose = toIsoVN_(found.obj.close_at);
+  if ((rawOpen && !isoOpen) || (rawClose && !isoClose)) return false;
+  return computeActiveFromSchedule_(isoOpen, isoClose);
 }
 
 function apiListPages(token) {
@@ -734,9 +743,14 @@ function apiListPages(token) {
   return {
     ok: true,
     pages: vals.map(function (r) {
+      var col = String(r[idx.active]).toUpperCase() === 'TRUE';
+      // `effective` = điều PHỤ HUYNH THỰC SỰ GẶP (cột active VÀ đang trong khung giờ lịch).
+      // Chỉ hiện cột active là admin nhìn thấy "Đang bật" trong khi cổng chặn đang TẮT vì đã
+      // qua close_at — tưởng trang mở mà thực tế phụ huynh bị đá ra.
+      var eff = col && computeActiveFromSchedule_(toIsoVN_(r[idx.open_at]), toIsoVN_(r[idx.close_at]));
       return {
         slug: String(r[idx.slug] || ''), label: String(r[idx.label] || ''),
-        active: String(r[idx.active]).toUpperCase() === 'TRUE', note: String(r[idx.note] || ''),
+        active: col, effective: eff, note: String(r[idx.note] || ''),
         open_at: toDatetimeLocal_(r[idx.open_at]), close_at: toDatetimeLocal_(r[idx.close_at])
       };
     })
@@ -749,7 +763,11 @@ function apiSavePage(token, data) {
   var slug = clean_(data.slug).toLowerCase();
   if (!slug) return { ok: false, message: 'Cần mã trang (slug — giá trị ?sw=).' };
   var sh = getPageListSheet_();
-  var found = findRow_(sh, 'slug', slug);
+  // findPageRow_ (không phân biệt hoa-thường) — PHẢI khớp cách tra của isPageActive_. Dùng findRow_
+  // ở đây thì ô "Ckry" sẽ không khớp ⇒ tưởng là trang mới ⇒ APPEND thêm dòng 'ckry' thứ hai.
+  // Sheet có 2 dòng cùng trang: nút Tắt sửa dòng mới, cổng chặn đọc dòng cũ ⇒ UI báo đã tắt,
+  // Telegram báo đã tắt, mà trang vẫn vào được.
+  var found = findPageRow_(sh, slug);
   var existed = !!found;
   // LƯU DẠNG ISO CHUẨN (yyyy-MM-ddTHH:mm:ss+07:00) — giống created_at. Input picker là giờ VN local.
   var openIso = toIsoVN_(data.open_at);
@@ -774,10 +792,21 @@ function apiSavePage(token, data) {
     active = (data.active === undefined ? prevActive : (data.active !== false)) ? 'TRUE' : 'FALSE';
   }
   forcePageTextCols_(sh); // PHẢI ép TEXT TRƯỚC khi ghi — nếu không Sheets tự đổi chuỗi ISO thành Date
-  upsertRow_(sh, 'slug', slug, {
+  // KHÔNG dùng upsertRow_: bên trong nó gọi findRow_ (so khớp thô) nên ô "Ckry" sẽ bị coi là
+  // chưa tồn tại và bị APPEND thành dòng trùng. Đã có `found` từ findPageRow_ rồi thì ghi thẳng.
+  // Ghi đè luôn ô slug về dạng chuẩn hoá ⇒ dữ liệu cũ gõ hoa tự được dọn khi lưu.
+  var rowVals = {
     slug: slug, label: clean_(data.label) || slug, active: active, note: clean_(data.note),
     open_at: openIso, close_at: closeIso
-  });
+  };
+  if (found) {
+    updateCells_(sh, found.rowIndex, rowVals);
+  } else {
+    var hIdx = headerIndex_(sh);
+    var arr = new Array(sh.getLastColumn()).fill('');
+    Object.keys(rowVals).forEach(function (k) { if (hIdx[k] !== undefined) arr[hIdx[k]] = rowVals[k]; });
+    sh.appendRow(arr);
+  }
   var name = clean_(data.label) || slug;
   var stateLine = 'Trạng thái sau khi lưu: ' + (active === 'TRUE' ? '🟢 ĐANG BẬT' : '🔴 ĐANG TẮT');
   if (!existed) {
@@ -811,9 +840,24 @@ function computeActiveFromSchedule_(openStr, closeStr) {
 function apiSetPageActive(token, slug, active) {
   var sess = requireAdmin_(token);
   var sh = getPageListSheet_();
-  var found = findRow_(sh, 'slug', clean_(slug).toLowerCase());
+  // PHẢI dùng findPageRow_ y như isPageActive_. Trước đây chỗ này dùng findRow_ (so khớp thô):
+  // ô slug gõ hoa "Ckry" trong sheet ⇒ nút Tắt báo "Không tìm thấy trang", còn cổng chặn thì
+  // vẫn khớp và cho vào ⇒ admin KHÔNG có cách nào tắt trang.
+  var found = findPageRow_(sh, slug);
   if (!found) return { ok: false, message: 'Không tìm thấy trang.' };
-  updateCells_(sh, found.rowIndex, { active: active ? 'TRUE' : 'FALSE' });
+  var write = { active: active ? 'TRUE' : 'FALSE', slug: clean_(slug).toLowerCase() };
+  if (active) {
+    // BẬT TAY phải dọn mốc lịch ĐÃ HẾT HIỆU LỰC trong cùng lần ghi. Nếu không: cột active=TRUE
+    // nhưng isPageActive_ vẫn AND với lịch ⇒ close_at cũ đè vĩnh viễn ⇒ admin tưởng đã mở mà
+    // phụ huynh vẫn bị đá ra. (Lỗi này do chính việc cho isPageActive_ tính lịch sinh ra.)
+    var now = Date.now();
+    var closeMs = parseWhen_(found.obj.close_at);
+    var openMs = parseWhen_(found.obj.open_at);
+    if (closeMs && now >= closeMs) write.close_at = '';
+    if (openMs && now < openMs) write.open_at = '';
+  }
+  forcePageTextCols_(sh);          // ép TEXT TRƯỚC khi ghi, kẻo Sheets đổi ISO thành Date
+  updateCells_(sh, found.rowIndex, write);
   staffTelegram_((active ? '🟢 BẬT' : '🔴 TẮT') + ' trang feedback: ' + (clean_(found.obj.label) || slug) +
     ' (?sw=' + clean_(slug).toLowerCase() + ')' + (active ? '' : ' → redirect ' + REDIRECT_WHEN_OFF) + '\n— ' + sess.name);
   return { ok: true };

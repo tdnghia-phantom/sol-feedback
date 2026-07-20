@@ -280,11 +280,17 @@ if (typeof document !== 'undefined') {
         honeypot: ($('[data-fb-hp]') || {}).value || ''
       });
       setSubmitting(true);
-      fetch(endpoint, {
+      // Timeout khi GỬI: nếu kết nối treo (không reject), nút kẹt "Đang gửi… ⏳" vĩnh viễn và
+      // phụ huynh chỉ còn cách F5 — mất sạch nội dung vừa gõ. 20s rồi cho bấm Gửi lại.
+      var sCtl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var sKill = sCtl ? setTimeout(function () { try { sCtl.abort(); } catch (e) {} }, 20000) : null;
+      var sOpts = {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify(payload)
-      }).then(function (res) { return res.json(); })
+      };
+      if (sCtl) sOpts.signal = sCtl.signal;
+      fetch(endpoint, sOpts).then(function (res) { if (sKill) clearTimeout(sKill); return res.json(); })
         .then(function (data) {
           if (data && data.ok) { showThanks(); }
           else if (data && data.closed) {
@@ -301,6 +307,7 @@ if (typeof document !== 'undefined') {
           }
         })
         .catch(function () {
+          if (sKill) clearTimeout(sKill);
           setSubmitting(false);
           showError('submit', 'Mạng đang chập chờn — dữ liệu ba mẹ điền vẫn còn nguyên, bấm Gửi lại giúp SOL nhé 📶');
         });
@@ -465,9 +472,9 @@ if (typeof document !== 'undefined') {
       var wsId = (typeof window !== 'undefined' && window.WS_ID) || '';
       if (!endpoint || endpoint.indexOf('{{') !== -1 || !wsId) { revealPage(); return; }
 
-      var MAX_TRIES = 4;          // 0s + 2s + 4s + 6s — thừa sức phủ cold start Apps Script (3-6s)
       var tries = 0;
       var settled = false;        // đã có đáp án DỨT KHOÁT từ server → ngừng hỏi
+      var inflight = false;
       var revealTimer = setTimeout(revealPage, 2500);
       var sep = endpoint.indexOf('?') === -1 ? '?' : '&';
       var url = endpoint + sep + 'action=pagestatus&sw=' + encodeURIComponent(wsId);
@@ -480,16 +487,28 @@ if (typeof document !== 'undefined') {
       function retry() {
         if (settled) return;
         revealPage();             // fail-open: lỗi mạng KHÔNG được chặn phụ huynh...
-        if (tries < MAX_TRIES) setTimeout(ask, tries * 2000); // ...nhưng vẫn hỏi tiếp
+        // ...và KHÔNG BAO GIỜ ngừng hỏi. Bản trước dừng sau 4 lần (~12s) — nghĩa là vẫn để mạng
+        // kết luận hộ "trang đang bật", đúng cái nguyên tắc cấm. Nay giãn dần rồi giữ trần 30s
+        // và hỏi mãi cho tới khi có đáp án dứt khoát.
+        setTimeout(ask, Math.min(tries * 2000, 30000));
       }
       function ask() {
-        if (settled) return;
+        if (settled || inflight) return;
+        inflight = true;
         tries++;
+        // Timeout từng request: kết nối treo (rất hay gặp trên 3G/4G chập chờn) thì fetch
+        // KHÔNG bao giờ resolve/reject ⇒ không có timeout là retry không chạy lần nào.
+        var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var killer = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 6000) : null;
+        var opts = { cache: 'no-store' };
+        if (ctl) opts.signal = ctl.signal;
+        function done() { inflight = false; if (killer) clearTimeout(killer); }
         // _= chống cache: response đi qua googleusercontent.com có thể bị trình duyệt lưu đệm,
         // dùng lại kết quả active:true cũ thì trang đã tắt vẫn vào được.
-        fetch(url + '&_=' + tries, { cache: 'no-store' })
+        fetch(url + '&_=' + tries, opts)
           .then(function (r) { return r.json(); })
           .then(function (d) {
+            done();
             if (settled) return;
             if (d && d.ok && typeof d.active === 'boolean') {
               if (d.active === false) { goOff(d.redirect); }   // TẮT → đá ra, dù trang đã hiện
@@ -498,7 +517,17 @@ if (typeof document !== 'undefined') {
             }
             retry();              // trả về thứ không hiểu (vd deployment cũ trả HTML) → hỏi lại
           })
-          .catch(retry);
+          .catch(function () { done(); retry(); });
+      }
+      // Hỏi lại ngay khi phụ huynh quay lại tab / mở lại từ bfcache — trang có thể đã bị tắt
+      // trong lúc tab nằm im, và timer nền thường bị trình duyệt bóp trên mobile.
+      if (typeof document !== 'undefined' && document.addEventListener) {
+        document.addEventListener('visibilitychange', function () {
+          if (!document.hidden) ask();
+        });
+      }
+      if (typeof window !== 'undefined' && window.addEventListener) {
+        window.addEventListener('pageshow', function () { ask(); });
       }
       ask();
     }
